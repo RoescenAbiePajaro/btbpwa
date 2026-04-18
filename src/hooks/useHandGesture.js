@@ -1,6 +1,5 @@
 // src/hooks/useHandGesture.js
 import { useEffect, useRef, useState } from 'react';
-import * as handpose from '@tensorflow-models/handpose';
 import '@tensorflow/tfjs';
 
 // Fallback CDNs for the handpose model (in case default fails)

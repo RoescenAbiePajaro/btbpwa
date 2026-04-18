@@ -32,6 +32,8 @@ const CanvasArea = () => {
   const lastPointRef = useRef(null);
   const handsRef = useRef(null);
   const animationRef = useRef(null);
+  const brushSizeRef = useRef(DEFAULT_BRUSH_SIZE);
+  const eraserSizeRef = useRef(DEFAULT_ERASER_SIZE);
 
   // Initialize canvas
   useEffect(() => {
@@ -74,10 +76,10 @@ const CanvasArea = () => {
   // Handle drawing with coordinate transformation for mirror
   const handleDrawing = useCallback((x, y) => {
     if (!isDrawingEnabled) return;
-    
+
     const isErasing = mode === 'erase';
     const color = isErasing ? '#FFFFFF' : brushColor;
-    const size = isErasing ? eraserSize : brushSize;
+    const size = isErasing ? eraserSizeRef.current : brushSizeRef.current;
 
     // Transform X coordinate for mirror (flip horizontally)
     const canvas = canvasRef.current;
@@ -97,11 +99,20 @@ const CanvasArea = () => {
     }
 
     lastPointRef.current = { x: transformedX, y };
-  }, [mode, brushColor, brushSize, eraserSize, isDrawingEnabled, drawLine, saveState]);
+  }, [mode, brushColor, isDrawingEnabled, drawLine, saveState]);
 
   const resetDrawing = useCallback(() => {
     lastPointRef.current = null;
   }, []);
+
+  // Sync refs with state for brush/eraser sizes
+  useEffect(() => {
+    brushSizeRef.current = brushSize;
+  }, [brushSize]);
+
+  useEffect(() => {
+    eraserSizeRef.current = eraserSize;
+  }, [eraserSize]);
 
   // Initialize MediaPipe Hands
   useEffect(() => {

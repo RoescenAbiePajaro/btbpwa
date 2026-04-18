@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { saveWorkToGallery } from '../services/api';
 import { exportAsImage, exportAsPDF, exportAsPPTX } from '../services/exportUtils';
 
-const CANVAS_WIDTH = 1024;
+const CANVAS_WIDTH = 1440;
 const CANVAS_HEIGHT = 768;
 const DEFAULT_BRUSH_SIZE = 5;
 const DEFAULT_ERASER_SIZE = 20;
@@ -172,7 +172,7 @@ const CanvasArea = () => {
         
         // Get camera stream
         const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { width: 640, height: 480 } 
+          video: { width: 1280, height: 720 } 
         });
         
         if (videoRef.current) {
@@ -424,11 +424,11 @@ const CanvasArea = () => {
         zIndex: 1000,
         borderLeft: `3px solid ${handDetected ? '#64FFDA' : '#FF4444'}`
       }}>
-        <div>🤖 {modelStatus}</div>
-        <div>✋ Hand: {handDetected ? '✓ Detected' : '✗ No Hand'}</div>
-        <div>🎯 Gesture: {currentGesture}</div>
-        <div>🎨 Mode: {mode}</div>
-        <div>{isDrawingEnabled ? '✅ Drawing ON' : '🔒 Drawing OFF'}</div>
+        <div> {modelStatus}</div>
+        <div> Hand: {handDetected ? ' Detected' : ' No Hand'}</div>
+        <div> Gesture: {currentGesture}</div>
+        <div> Mode: {mode}</div>
+        <div>{isDrawingEnabled ? ' Drawing ON' : ' Drawing OFF'}</div>
       </div>
 
       <Toolbar
@@ -460,8 +460,8 @@ const CanvasArea = () => {
           <video
             ref={videoRef}
             className="hand-camera"
-            width={320}
-            height={240}
+            width={480}
+            height={360}
             autoPlay
             playsInline
             muted

@@ -1,3 +1,4 @@
+// src/components/GuideModal.jsx
 import React from 'react';
 
 const GuideModal = ({ onClose }) => {

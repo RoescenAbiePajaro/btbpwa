@@ -1,3 +1,5 @@
+
+// src/services/gestureProcessor.js
 export const mapToCanvas = (point, videoElement, canvasElement) => {
   if (!videoElement || !canvasElement) return { x: 0, y: 0 };
   const videoRect = videoElement.getBoundingClientRect();

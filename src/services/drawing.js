@@ -1,3 +1,5 @@
+
+// src/services/drawing.js
 let lastX = null, lastY = null;
 
 export const drawLine = (canvas, x, y, color, size, mode, onDrawEnd) => {

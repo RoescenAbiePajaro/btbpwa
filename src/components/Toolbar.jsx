@@ -1,3 +1,4 @@
+// src/components/Toolbar.jsx
 import React from 'react';
 import { BRUSH_COLORS } from '../utils/constants';
 

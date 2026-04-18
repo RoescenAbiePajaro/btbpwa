@@ -1,3 +1,5 @@
+
+// src/components/Gallery.jsx
 import React, { useEffect, useState } from 'react';
 import { getUserGallery, loadWorkFromGallery } from '../services/api';
 

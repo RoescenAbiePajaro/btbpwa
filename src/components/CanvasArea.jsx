@@ -1,3 +1,4 @@
+// src/components/CanvasArea.jsx
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import Toolbar from './Toolbar';

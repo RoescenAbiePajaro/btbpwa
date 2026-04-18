@@ -2,7 +2,7 @@ import React from 'react';
 
 const Toolbar = ({ 
   mode, setMode, brushColor, setBrushColor, brushSize, setBrushSize, 
-  eraserSize, setEraserSize, onUndo, onRedo, onClear, onSave, onExport, 
+  eraserSize, setEraserSize, onUndo, onRedo, onClear, onSave, 
   onGuide, onGallery, onLogout, onToggleDrawing, isDrawingEnabled 
 }) => {
   const colors = [
@@ -88,7 +88,6 @@ const Toolbar = ({
 
       <div className="toolbar-section">
         <button onClick={onSave} className="tool-btn">💾 Save</button>
-        <button onClick={() => onExport('image')} className="tool-btn">📸 Export</button>
         <button onClick={onGuide} className="tool-btn">❓ Guide</button>
         <button onClick={onGallery} className="tool-btn">🖼️ Gallery</button>
         <button onClick={onLogout} className="tool-btn">🚪 Logout</button>

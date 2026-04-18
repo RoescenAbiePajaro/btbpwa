@@ -1,6 +1,11 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Toolbar from './Toolbar';
+import Gallery from './Gallery';
+import GuideModal from './GuideModal';
+import KeyboardText from './KeyboardText';
 import { useAuth } from '../context/AuthContext';
+import { saveWorkToGallery } from '../services/api';
+import { exportAsImage, exportAsPDF, exportAsPPTX } from '../services/exportUtils';
 
 const CANVAS_WIDTH = 1024;
 const CANVAS_HEIGHT = 768;
@@ -19,6 +24,9 @@ const CanvasArea = () => {
   const [modelStatus, setModelStatus] = useState('Initializing...');
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(true);
   const [currentGesture, setCurrentGesture] = useState('none');
+  const [showGallery, setShowGallery] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [keyboardText, setKeyboardText] = useState({ text: '', pos: { x: 200, y: 200 } });
   const { logout } = useAuth();
 
   const lastPointRef = useRef(null);
@@ -290,6 +298,55 @@ const CanvasArea = () => {
     resetDrawing();
   };
 
+  const handleSave = async () => {
+    try {
+      const canvas = canvasRef.current;
+      const thumbnail = canvas.toDataURL('image/png', 0.1);
+      const canvasData = canvas.toDataURL();
+      await saveWorkToGallery(thumbnail, canvasData);
+      alert('Saved to gallery successfully!');
+    } catch (error) {
+      console.error('Save error:', error);
+      alert('Failed to save to gallery');
+    }
+  };
+
+  const handleExport = async (format) => {
+    try {
+      const canvas = canvasRef.current;
+      if (format === 'image') {
+        await exportAsImage(canvas);
+      } else if (format === 'pdf') {
+        await exportAsPDF(canvas);
+      } else if (format === 'pptx') {
+        await exportAsPPTX(canvas);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export');
+    }
+  };
+
+  const handleGuide = () => {
+    setShowGuide(true);
+  };
+
+  const handleGallery = () => {
+    setShowGallery(true);
+  };
+
+  const handleLoadFromGallery = (canvasData) => {
+    const img = new Image();
+    img.onload = () => {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      ctx.drawImage(img, 0, 0);
+      const newState = canvasRef.current.toDataURL();
+      setHistory({ undoStack: [newState], redoStack: [] });
+    };
+    img.src = canvasData;
+  };
+
   return (
     <div className="canvas-container">
       {/* Status Indicator */}
@@ -325,10 +382,10 @@ const CanvasArea = () => {
         onUndo={handleUndo}
         onRedo={handleRedo}
         onClear={handleClear}
-        onSave={() => alert('Save feature coming soon')}
-        onExport={() => alert('Export feature coming soon')}
-        onGuide={() => alert('Guide: Use index finger to draw, peace sign to stop, thumbs up to erase')}
-        onGallery={() => alert('Gallery feature coming soon')}
+        onSave={handleSave}
+        onExport={handleExport}
+        onGuide={handleGuide}
+        onGallery={handleGallery}
         onLogout={logout}
         onToggleDrawing={toggleDrawing}
         isDrawingEnabled={isDrawingEnabled}
@@ -354,6 +411,20 @@ const CanvasArea = () => {
           </div>
         </div>
       </div>
+
+      {/* Modals and Overlays */}
+      {showGallery && (
+        <Gallery
+          onClose={() => setShowGallery(false)}
+          onLoad={handleLoadFromGallery}
+        />
+      )}
+
+      {showGuide && (
+        <GuideModal onClose={() => setShowGuide(false)} />
+      )}
+
+      <KeyboardText setKeyboardText={setKeyboardText} />
     </div>
   );
 };

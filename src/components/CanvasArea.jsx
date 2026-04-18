@@ -25,6 +25,7 @@ const CanvasArea = () => {
   const [showGallery, setShowGallery] = useState(false);
   const [keyboardText, setKeyboardText] = useState(null);
   const { logout } = useAuth();
+  const [handDetected, setHandDetected] = useState(false);
 
   // Initialize canvas
   useEffect(() => {
@@ -47,8 +48,9 @@ const CanvasArea = () => {
     }));
   }, []);
 
-  // Hand gesture callback
-  const handleGesture = useCallback((landmarks) => {
+  // Hand gesture callback with visual feedback
+  const handleGesture = useCallback((landmarks, detected) => {
+    setHandDetected(detected);
     if (mode === 'keyboard') return;
     if (!isIndexFingerOnly(landmarks)) {
       resetLastPoint();
@@ -101,7 +103,7 @@ const CanvasArea = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#0A192F]">
+    <div className="canvas-container">
       <Toolbar
         mode={mode} setMode={setMode}
         brushColor={brushColor} setBrushColor={setBrushColor}
@@ -115,10 +117,20 @@ const CanvasArea = () => {
         onGallery={() => setShowGallery(true)}
         onLogout={logout}
       />
-      <div className="flex flex-1 relative">
-        <canvas ref={canvasRef} className="bg-white shadow-lg m-4 rounded-lg" style={{ width: '80%', height: 'auto' }} />
+      <div className="canvas-main">
+        <canvas ref={canvasRef} className="drawing-canvas" />
         {mode === 'keyboard' && <KeyboardText setKeyboardText={setKeyboardText} />}
-        <Webcam ref={webcamRef} className="absolute bottom-4 right-4 w-48 h-36 rounded-lg border-2 border-[#64FFDA]" mirrored />
+        <Webcam
+          ref={webcamRef}
+          className={`hand-cam ${handDetected ? 'hand-detected' : ''}`}
+          videoConstraints={{
+            width: 640,
+            height: 480,
+            facingMode: "user"
+          }}
+          mirrored={false}  // We handle mirroring in CSS and coordinate mapping
+          style={{ transform: 'scaleX(-1)' }} // Mirror for natural feel
+        />
       </div>
       {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
       {showGallery && <Gallery onClose={() => setShowGallery(false)} onLoad={handleLoadFromGallery} />}

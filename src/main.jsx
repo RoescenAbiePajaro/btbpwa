@@ -1,4 +1,5 @@
 // src/main.jsx (or src/index.js)
+import './tfhubFetchProxy.js';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import * as tf from '@tensorflow/tfjs';

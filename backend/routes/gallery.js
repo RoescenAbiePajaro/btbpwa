@@ -1,3 +1,4 @@
+// backend/routes/gallery.js
 import express from 'express';
 import auth from '../middleware/auth.js';
 import SavedWork from '../models/SavedWork.js';

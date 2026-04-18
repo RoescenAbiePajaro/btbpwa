@@ -19,7 +19,6 @@ export const drawLine = (canvas, x, y, color, size, mode, onDrawEnd) => {
     ctx.lineTo(x, y);
     ctx.stroke();
   } else {
-    // draw a dot
     ctx.beginPath();
     ctx.arc(x, y, size / 2, 0, Math.PI * 2);
     ctx.fill();
@@ -27,7 +26,6 @@ export const drawLine = (canvas, x, y, color, size, mode, onDrawEnd) => {
 
   lastX = x;
   lastY = y;
-
   if (onDrawEnd) onDrawEnd();
 };
 

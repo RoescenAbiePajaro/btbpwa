@@ -1,22 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import { getUserGallery, loadWorkFromGallery } from '../services/api';
 
 const Gallery = ({ onClose, onLoad }) => {
   const [works, setWorks] = useState([]);
 
   useEffect(() => {
     const fetch = async () => {
-      const token = localStorage.getItem('token');
-      const res = await axios.get('/api/gallery', { headers: { Authorization: `Bearer ${token}` } });
-      setWorks(res.data);
+      const data = await getUserGallery();
+      setWorks(data);
     };
     fetch();
   }, []);
 
   const handleLoad = async (id) => {
-    const token = localStorage.getItem('token');
-    const res = await axios.get(`/api/gallery/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-    onLoad(res.data.canvasData);
+    const canvasData = await loadWorkFromGallery(id);
+    onLoad(canvasData);
     onClose();
   };
 

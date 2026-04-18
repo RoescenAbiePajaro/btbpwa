@@ -8,12 +8,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
     window.location.href = '/login';
   };
-
-  return (
-    <AuthContext.Provider value={{ logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ logout }}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => useContext(AuthContext);

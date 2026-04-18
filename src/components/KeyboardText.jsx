@@ -8,7 +8,7 @@ const KeyboardText = ({ setKeyboardText }) => {
 
   useEffect(() => {
     setKeyboardText({ text, pos });
-  }, [text, pos]);
+  }, [text, pos, setKeyboardText]);
 
   const handleDrag = (e) => {
     if (isEditing) return;

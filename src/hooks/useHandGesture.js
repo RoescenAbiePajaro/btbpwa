@@ -15,20 +15,16 @@ export const useHandGesture = (webcamRef, onGesture) => {
 
   useEffect(() => {
     if (!model || !webcamRef.current) return;
-
     const detect = async () => {
       if (webcamRef.current && webcamRef.current.video.readyState === 4) {
         const video = webcamRef.current.video;
         const predictions = await model.estimateHands(video);
         if (predictions.length > 0) {
-          const landmarks = predictions[0].landmarks;
-          const indexTip = landmarks[8]; // index finger tip
-          onGesture(indexTip);
+          onGesture(predictions[0].landmarks);
         }
       }
       requestRef.current = requestAnimationFrame(detect);
     };
-
     requestRef.current = requestAnimationFrame(detect);
     return () => cancelAnimationFrame(requestRef.current);
   }, [model, webcamRef, onGesture]);

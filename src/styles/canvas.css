@@ -128,7 +128,7 @@ body {
   position: relative;
   justify-content: center;
   align-items: center;
-  padding: 1.5rem;
+  padding: 5rem 1.5rem 1.5rem 1.5rem;
   gap: 1.5rem;
   overflow: auto;
 }
@@ -182,20 +182,20 @@ body {
 /* ===== MODERN GLASS TOOLBAR ===== */
 .glass-toolbar {
   position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 0;
+  left: 0;
+  right: 0;
   background: rgba(17, 34, 64, 0.95);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(100, 255, 218, 0.3);
-  border-radius: 60px;
-  padding: 12px 24px;
+  border-bottom: 1px solid rgba(100, 255, 218, 0.3);
+  border-radius: 0 0 16px 16px;
+  padding: 8px 24px;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   z-index: 100;
   transition: all 0.3s ease;
 }
@@ -486,7 +486,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* ===== STATUS INDICATOR ===== */
 .status-indicator {
   position: fixed;
-  top: 10px;
+  top: 60px;
   left: 10px;
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);

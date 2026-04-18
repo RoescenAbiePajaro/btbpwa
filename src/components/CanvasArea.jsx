@@ -352,7 +352,7 @@ const CanvasArea = () => {
       {/* Status Indicator */}
       <div style={{
         position: 'fixed',
-        top: 10,
+        top: 60,
         left: 10,
         background: 'rgba(0,0,0,0.85)',
         color: '#64FFDA',

@@ -1,5 +1,103 @@
 /* src/styles/canvas.css */
 /* ===== GLOBAL RESETS & FONTS ===== */
+
+/* Camera container styles */
+.camera-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 320px;
+  height: 240px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(100, 255, 218, 0.5);
+  z-index: 50;
+  background: #000;
+  transition: all 0.3s ease;
+}
+
+.hand-camera {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* Mirror for natural POV */
+}
+
+.camera-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+  color: white;
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.camera-overlay.hand-detected {
+  background: linear-gradient(to top, rgba(100, 255, 218, 0.9), transparent);
+  color: #0A192F;
+}
+
+.camera-container:hover {
+  transform: scale(1.02);
+  border-color: #64FFDA;
+  box-shadow: 0 0 20px rgba(100, 255, 218, 0.3);
+}
+
+/* Drawing canvas container */
+.canvas-main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  position: relative;
+}
+
+.drawing-canvas {
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 25px 40px -12px rgba(0, 0, 0, 0.5);
+  max-width: 90%;
+  max-height: 90%;
+  width: auto;
+  height: auto;
+  cursor: crosshair;
+  transition: all 0.3s ease;
+}
+
+.drawing-canvas:hover {
+  transform: scale(1.01);
+  box-shadow: 0 30px 50px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* Responsive camera */
+@media (max-width: 768px) {
+  .camera-container {
+    width: 240px;
+    height: 180px;
+    bottom: 80px;
+    right: 10px;
+  }
+  
+  .camera-overlay {
+    font-size: 10px;
+    padding: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .camera-container {
+    width: 180px;
+    height: 135px;
+    bottom: 70px;
+  }
+}
 * {
   margin: 0;
   padding: 0;

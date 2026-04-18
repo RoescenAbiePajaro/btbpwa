@@ -63,7 +63,7 @@ const CanvasArea = () => {
     ctx.stroke();
   }, []);
 
-  // Handle drawing
+  // Handle drawing with coordinate transformation for mirror
   const handleDrawing = useCallback((x, y) => {
     if (!isDrawingEnabled) return;
     
@@ -71,11 +71,15 @@ const CanvasArea = () => {
     const color = isErasing ? '#FFFFFF' : brushColor;
     const size = isErasing ? eraserSize : brushSize;
 
+    // Transform X coordinate for mirror (flip horizontally)
+    const canvas = canvasRef.current;
+    const transformedX = canvas.width - x;
+
     if (lastPointRef.current) {
       drawLine(
         lastPointRef.current.x,
         lastPointRef.current.y,
-        x,
+        transformedX,
         y,
         color,
         size,
@@ -84,7 +88,7 @@ const CanvasArea = () => {
       saveState();
     }
 
-    lastPointRef.current = { x, y };
+    lastPointRef.current = { x: transformedX, y };
   }, [mode, brushColor, brushSize, eraserSize, isDrawingEnabled, drawLine, saveState]);
 
   const resetDrawing = useCallback(() => {
@@ -153,6 +157,7 @@ const CanvasArea = () => {
             const canvas = canvasRef.current;
             
             if (canvas && indexTip) {
+              // Don't transform here, transform in handleDrawing
               const x = indexTip.x * canvas.width;
               const y = indexTip.y * canvas.height;
               
@@ -332,16 +337,22 @@ const CanvasArea = () => {
       <div className="canvas-main">
         <canvas ref={canvasRef} className="drawing-canvas" />
         
-        {/* Hidden video element for hand tracking */}
-        <video
-          ref={videoRef}
-          style={{ display: 'none' }}
-          width={640}
-          height={480}
-          autoPlay
-          playsInline
-          muted
-        />
+        {/* Camera feed - visible and mirrored for natural POV */}
+        <div className="camera-container">
+          <video
+            ref={videoRef}
+            className="hand-camera"
+            width={320}
+            height={240}
+            autoPlay
+            playsInline
+            muted
+            style={{ transform: 'scaleX(-1)' }} // Mirror for natural POV
+          />
+          <div className={`camera-overlay ${handDetected ? 'hand-detected' : ''}`}>
+            <span>{handDetected ? '✋ Hand Detected' : '✋ Show Your Hand'}</span>
+          </div>
+        </div>
       </div>
     </div>
   );

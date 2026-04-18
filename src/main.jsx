@@ -1,18 +1,16 @@
-// src/main.jsx (or src/index.js)
-import './tfhubFetchProxy.js';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import './index.css';        // Tailwind CSS
-import './styles/canvas.css'; // Custom component styles
+import './index.css';
+import './styles/canvas.css';
 
-
-
-  // Render React app after TensorFlow is ready
-  const root = ReactDOM.createRoot(document.getElementById('root'));
+// Wait for DOM to load
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
       <App />
     </React.StrictMode>
   );
-;
+}

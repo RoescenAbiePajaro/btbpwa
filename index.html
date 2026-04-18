@@ -3,40 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <meta name="description" content="Beyond The Brush - AI-powered hand gesture drawing app" />
-    
-    <!-- Content Security Policy to allow TensorFlow.js and Handpose CDNs -->
-    <meta http-equiv="Content-Security-Policy" content="
-      default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://tfhub.dev;
-      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-      img-src 'self' data: blob:;
-      media-src 'self' blob:;
-      connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://tfhub.dev https://*.tensorflow.org;
-      font-src 'self' https://fonts.gstatic.com;
-      worker-src 'self' blob:;
-    ">
-    
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Beyond The Brush - Hand Gesture Drawing</title>
-    
-    <!-- Preconnect to CDNs for faster loading -->
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-    <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="preconnect" href="https://tfhub.dev" />
-    
-    <!-- Google Fonts (Inter) for clean typography -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Load MediaPipe Hands -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
   </head>
   <body>
-    <!-- React mount point -->
     <div id="root"></div>
-    
-    <!-- 
-      TensorFlow.js is imported as an ES module via the main.jsx entry point.
-      The script tag for the main bundle will be injected by Vite / Webpack.
-      If you are not using a bundler, add: <script type="module" src="/src/main.jsx"></script>
-    -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

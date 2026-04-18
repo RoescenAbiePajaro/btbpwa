@@ -111,34 +111,42 @@ const Gallery = ({ onClose, onLoad }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-[#112240] p-6 rounded-xl w-3/4 max-h-[80vh] overflow-auto">
-        <h2 className="text-2xl mb-4">Your Gallery</h2>
-        <div className="grid grid-cols-3 gap-4">
+    <div className="gallery-container">
+      <div className="gallery-header">
+        <h2 className="gallery-title">Your Gallery</h2>
+        <button onClick={onClose} className="gallery-close-btn">✕</button>
+      </div>
+      
+      {works.length === 0 ? (
+        <div className="gallery-empty">
+          <p>No saved works yet. Start creating!</p>
+        </div>
+      ) : (
+        <div className="gallery-grid">
           {works.map(work => (
-            <div key={work._id} className="bg-[#1E3A5F] p-2 rounded">
-              <div className="cursor-pointer" onClick={() => handleLoad(work._id)}>
-                <img src={work.thumbnail} alt={work.title} className="w-full h-32 object-contain" />
-                <p className="text-center mt-2">{work.title}</p>
+            <div key={work._id} className="gallery-item">
+              <div className="gallery-item-content" onClick={() => handleLoad(work._id)}>
+                <img src={work.thumbnail} alt={work.title} className="gallery-thumbnail" />
+                <p className="gallery-item-title">{work.title}</p>
               </div>
-              <div className="flex justify-center gap-1 mt-2">
+              <div className="gallery-item-actions">
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleExport(work, 'image'); }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded"
+                  className="gallery-action-btn gallery-action-btn--image"
                   title="Export as Image"
                 >
                   PNG
                 </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleExport(work, 'pdf'); }}
-                  className="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded"
+                  className="gallery-action-btn gallery-action-btn--pdf"
                   title="Export as PDF"
                 >
                   PDF
                 </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleExport(work, 'pptx'); }}
-                  className="bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded"
+                  className="gallery-action-btn gallery-action-btn--pptx"
                   title="Export as PowerPoint"
                 >
                   PPTX
@@ -147,8 +155,7 @@ const Gallery = ({ onClose, onLoad }) => {
             </div>
           ))}
         </div>
-        <button onClick={onClose} className="mt-4 bg-red-500 px-4 py-2 rounded">Close</button>
-      </div>
+      )}
     </div>
   );
 };

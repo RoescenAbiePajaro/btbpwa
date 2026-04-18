@@ -1,13 +1,7 @@
 // src/hooks/useHandGesture.js
 import { useEffect, useRef, useState } from 'react';
 import '@tensorflow/tfjs';
-
-// Fallback CDNs for the handpose model (in case default fails)
-const MODEL_CDNS = [
-  'https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7/dist/handpose.json',
-  'https://unpkg.com/@tensorflow-models/handpose@0.0.7/dist/handpose.json',
-  // default tensorflow CDN will be used by the library itself
-];
+import * as handpose from '@tensorflow-models/handpose';
 
 export const useHandGesture = (webcamRef, onGesture, setModelStatus) => {
   const [model, setModel] = useState(null);
@@ -23,11 +17,8 @@ export const useHandGesture = (webcamRef, onGesture, setModelStatus) => {
         if (setModelStatus) setModelStatus('Loading model...');
         console.log('Loading handpose model...');
         
-        // The handpose.load() automatically fetches from its default CDN
-        // We'll add a timeout and retry
-        const handModel = await handpose.load({
-          modelUrl: MODEL_CDNS[0], // try first fallback
-        });
+        // handpose.load() automatically fetches from its default CDN
+        const handModel = await handpose.load();
         
         if (isMounted) {
           setModel(handModel);
@@ -36,22 +27,8 @@ export const useHandGesture = (webcamRef, onGesture, setModelStatus) => {
           console.log('Handpose model loaded successfully');
         }
       } catch (err) {
-        console.error('Failed with first CDN, trying fallback...', err);
-        try {
-          // Try second fallback
-          const handModel = await handpose.load({
-            modelUrl: MODEL_CDNS[1],
-          });
-          if (isMounted) {
-            setModel(handModel);
-            setIsModelReady(true);
-            if (setModelStatus) setModelStatus('Ready (fallback)');
-            console.log('Handpose loaded with fallback CDN');
-          }
-        } catch (err2) {
-          console.error('All CDNs failed:', err2);
-          if (setModelStatus) setModelStatus('Error: network issue');
-        }
+        console.error('Failed to load handpose model:', err);
+        if (setModelStatus) setModelStatus('Error: network issue');
       }
     };
     loadModel();

@@ -10,7 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/hands": "^0.4.1675469240",
+    "@tensorflow-models/handpose": "^0.1.0",
     "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-core": "^4.22.0",
     "axios": "^1.15.0",
     "fabric": "^7.2.0",
     "html2canvas": "^1.4.1",

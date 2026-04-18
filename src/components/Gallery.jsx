@@ -11,6 +11,7 @@ const Gallery = ({ onClose, onLoad }) => {
   const [exportFormat, setExportFormat] = useState(null);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [showExportModal, setShowExportModal] = useState(false);
+  const [templateImage, setTemplateImage] = useState(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -19,6 +20,59 @@ const Gallery = ({ onClose, onLoad }) => {
     };
     fetch();
   }, []);
+
+  // Load template image on component mount
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => setTemplateImage(img);
+    img.onerror = () => console.error('Failed to load template image');
+    img.src = '/template.png';
+  }, []);
+
+  // Function to composite artwork onto template
+  const compositeWithTemplate = async (canvasDataUrl) => {
+    return new Promise((resolve, reject) => {
+      if (!templateImage) {
+        reject(new Error('Template image not loaded'));
+        return;
+      }
+
+      const artworkImg = new Image();
+      artworkImg.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          // Set canvas size to match template
+          canvas.width = templateImage.width;
+          canvas.height = templateImage.height;
+
+          // Draw template first
+          ctx.drawImage(templateImage, 0, 0);
+
+          // Draw artwork on top, centered and scaled to fit
+          const scale = Math.min(
+            canvas.width / artworkImg.width,
+            canvas.height / artworkImg.height
+          ) * 0.85; // 85% to leave some margin
+
+          const scaledWidth = artworkImg.width * scale;
+          const scaledHeight = artworkImg.height * scale;
+          const x = (canvas.width - scaledWidth) / 2;
+          const y = (canvas.height - scaledHeight) / 2;
+
+          ctx.drawImage(artworkImg, x, y, scaledWidth, scaledHeight);
+
+          resolve(canvas.toDataURL('image/png'));
+        } catch (error) {
+          reject(error);
+        }
+      };
+      artworkImg.onerror = () => reject(new Error('Failed to load artwork'));
+      artworkImg.src = canvasDataUrl;
+    });
+  };
 
   const handleLoad = async (id) => {
     const canvasData = await loadWorkFromGallery(id);
@@ -46,7 +100,9 @@ const Gallery = ({ onClose, onLoad }) => {
 
   const exportAsImage = async (work) => {
     try {
-      const response = await fetch(work.thumbnail);
+      // Use canvasData (full artwork) instead of thumbnail
+      const compositedImage = await compositeWithTemplate(work.canvasData);
+      const response = await fetch(compositedImage);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -63,7 +119,9 @@ const Gallery = ({ onClose, onLoad }) => {
     return new Promise(async (resolve, reject) => {
       try {
         const pdf = new jsPDF();
-        const response = await fetch(work.thumbnail);
+        // Use canvasData (full artwork) composited with template
+        const compositedImage = await compositeWithTemplate(work.canvasData);
+        const response = await fetch(compositedImage);
         const blob = await response.blob();
         
         const img = new Image();
@@ -111,9 +169,9 @@ const Gallery = ({ onClose, onLoad }) => {
           color: '363636'
         });
         
-        const response = await fetch(work.thumbnail);
-        const blob = await response.blob();
-        const imageData = await blob.arrayBuffer();
+        // Use canvasData (full artwork) composited with template
+        const compositedImage = await compositeWithTemplate(work.canvasData);
+        const imageData = await fetch(compositedImage).then(res => res.arrayBuffer());
         const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
         
         slide.addImage({
@@ -157,7 +215,6 @@ const Gallery = ({ onClose, onLoad }) => {
     return new Promise(async (resolve, reject) => {
       try {
         const pdf = new jsPDF();
-        let currentY = 20;
         
         for (let i = 0; i < selectedWorks.length; i++) {
           const work = selectedWorks[i];
@@ -165,15 +222,17 @@ const Gallery = ({ onClose, onLoad }) => {
           // Add new page for each work (except first one)
           if (i > 0) {
             pdf.addPage();
-            currentY = 20;
           }
+          
+          let currentY = 20;
           
           // Add title
           pdf.text(work.title, pdf.internal.pageSize.width / 2, currentY, { align: 'center' });
           currentY += 20;
           
-          // Load and add image
-          const response = await fetch(work.thumbnail);
+          // Use canvasData (full artwork) composited with template
+          const compositedImage = await compositeWithTemplate(work.canvasData);
+          const response = await fetch(compositedImage);
           const blob = await response.blob();
           
           const img = new Image();
@@ -229,10 +288,9 @@ const Gallery = ({ onClose, onLoad }) => {
             color: '363636'
           });
           
-          // Add image to slide
-          const response = await fetch(work.thumbnail);
-          const blob = await response.blob();
-          const imageData = await blob.arrayBuffer();
+          // Use canvasData (full artwork) composited with template
+          const compositedImage = await compositeWithTemplate(work.canvasData);
+          const imageData = await fetch(compositedImage).then(res => res.arrayBuffer());
           const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
           
           slide.addImage({
@@ -260,7 +318,9 @@ const Gallery = ({ onClose, onLoad }) => {
         const imgFolder = zip.folder("gallery-images");
         
         for (const work of selectedWorks) {
-          const response = await fetch(work.thumbnail);
+          // Use canvasData (full artwork) composited with template
+          const compositedImage = await compositeWithTemplate(work.canvasData);
+          const response = await fetch(compositedImage);
           const blob = await response.blob();
           const arrayBuffer = await blob.arrayBuffer();
           

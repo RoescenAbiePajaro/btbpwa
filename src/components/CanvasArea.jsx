@@ -35,6 +35,9 @@ const CanvasArea = () => {
   const brushSizeRef = useRef(DEFAULT_BRUSH_SIZE);
   const eraserSizeRef = useRef(DEFAULT_ERASER_SIZE);
   const pointBufferRef = useRef([]);
+  const shapeStartRef = useRef(null);
+  const isDrawingShapeRef = useRef(false);
+  const canvasSnapshotRef = useRef(null);
 
   // Initialize canvas
   useEffect(() => {
@@ -119,6 +122,102 @@ const CanvasArea = () => {
     ctx.restore();
   }, []);
 
+  // Shape drawing functions (Microsoft Paint style)
+  const drawShapeLine = useCallback((fromX, fromY, toX, toY, color, size) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.lineTo(toX, toY);
+    ctx.stroke();
+    ctx.restore();
+  }, []);
+
+  const drawShapeRectangle = useCallback((fromX, fromY, toX, toY, color, size) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    ctx.beginPath();
+    ctx.rect(fromX, fromY, toX - fromX, toY - fromY);
+    ctx.stroke();
+    ctx.restore();
+  }, []);
+
+  const drawShapeSquare = useCallback((fromX, fromY, toX, toY, color, size) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    
+    const sideLength = Math.max(Math.abs(toX - fromX), Math.abs(toY - fromY));
+    const directionX = toX > fromX ? 1 : -1;
+    const directionY = toY > fromY ? 1 : -1;
+    
+    ctx.beginPath();
+    ctx.rect(fromX, fromY, sideLength * directionX, sideLength * directionY);
+    ctx.stroke();
+    ctx.restore();
+  }, []);
+
+  const drawShapeCircle = useCallback((fromX, fromY, toX, toY, color, size) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    
+    const radius = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+    ctx.beginPath();
+    ctx.arc(fromX, fromY, radius, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+  }, []);
+
+  const drawShapeTriangle = useCallback((fromX, fromY, toX, toY, color, size) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    
+    const width = toX - fromX;
+    const height = toY - fromY;
+    
+    ctx.beginPath();
+    ctx.moveTo(fromX + width / 2, fromY);
+    ctx.lineTo(fromX, toY);
+    ctx.lineTo(toX, toY);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }, []);
+
+  // Restore canvas from snapshot (for shape preview)
+  const restoreCanvasSnapshot = useCallback(() => {
+    if (canvasSnapshotRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+      };
+      img.src = canvasSnapshotRef.current;
+    }
+  }, []);
+
+  // Save canvas snapshot (for shape preview)
+  const saveCanvasSnapshot = useCallback(() => {
+    canvasSnapshotRef.current = canvasRef.current.toDataURL();
+  }, []);
+
   // Handle drawing with coordinate transformation for mirror
   const handleDrawing = useCallback((x, y) => {
     if (!isDrawingEnabled) return;
@@ -150,9 +249,95 @@ const CanvasArea = () => {
     lastPointRef.current = { x: transformedX, y: smoothed.y };
   }, [mode, brushColor, isDrawingEnabled, drawLine, saveState, smoothCoordinates]);
 
+  // Handle shape drawing with preview (Microsoft Paint style)
+  const handleShapeDrawing = useCallback((x, y, isDrawing) => {
+    if (!isDrawingEnabled) return;
+
+    const canvas = canvasRef.current;
+    const transformedX = canvas.width - x;
+    const color = brushColor;
+    const size = brushSizeRef.current;
+
+    // Check if we're in a shape mode
+    const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
+    const isShapeMode = shapeModes.includes(mode);
+
+    if (!isShapeMode) return;
+
+    if (isDrawing) {
+      // Start drawing shape
+      if (!isDrawingShapeRef.current) {
+        // Save canvas state for preview
+        saveCanvasSnapshot();
+        shapeStartRef.current = { x: transformedX, y };
+        isDrawingShapeRef.current = true;
+      } else {
+        // Update shape preview
+        if (shapeStartRef.current && canvasSnapshotRef.current) {
+          restoreCanvasSnapshot();
+          const start = shapeStartRef.current;
+          
+          // Draw preview based on mode
+          setTimeout(() => {
+            switch (mode) {
+              case 'line':
+                drawShapeLine(start.x, start.y, transformedX, y, color, size);
+                break;
+              case 'rectangle':
+                drawShapeRectangle(start.x, start.y, transformedX, y, color, size);
+                break;
+              case 'square':
+                drawShapeSquare(start.x, start.y, transformedX, y, color, size);
+                break;
+              case 'circle':
+                drawShapeCircle(start.x, start.y, transformedX, y, color, size);
+                break;
+              case 'triangle':
+                drawShapeTriangle(start.x, start.y, transformedX, y, color, size);
+                break;
+            }
+          }, 10);
+        }
+      }
+    } else {
+      // Finish drawing shape
+      if (isDrawingShapeRef.current && shapeStartRef.current) {
+        restoreCanvasSnapshot();
+        const start = shapeStartRef.current;
+        
+        // Finalize shape
+        switch (mode) {
+          case 'line':
+            drawShapeLine(start.x, start.y, transformedX, y, color, size);
+            break;
+          case 'rectangle':
+            drawShapeRectangle(start.x, start.y, transformedX, y, color, size);
+            break;
+          case 'square':
+            drawShapeSquare(start.x, start.y, transformedX, y, color, size);
+            break;
+          case 'circle':
+            drawShapeCircle(start.x, start.y, transformedX, y, color, size);
+            break;
+          case 'triangle':
+            drawShapeTriangle(start.x, start.y, transformedX, y, color, size);
+            break;
+        }
+        
+        saveState();
+        shapeStartRef.current = null;
+        isDrawingShapeRef.current = false;
+        canvasSnapshotRef.current = null;
+      }
+    }
+  }, [mode, brushColor, isDrawingEnabled, brushSizeRef, saveCanvasSnapshot, restoreCanvasSnapshot, drawShapeLine, drawShapeRectangle, drawShapeSquare, drawShapeCircle, drawShapeTriangle, saveState]);
+
   const resetDrawing = useCallback(() => {
     lastPointRef.current = null;
     pointBufferRef.current = [];
+    shapeStartRef.current = null;
+    isDrawingShapeRef.current = false;
+    canvasSnapshotRef.current = null;
   }, []);
 
   // Sync refs with state for brush/eraser sizes
@@ -230,8 +415,16 @@ const CanvasArea = () => {
               const x = indexTip.x * canvas.width;
               const y = indexTip.y * canvas.height;
               
+              // Check if we're in a shape mode
+              const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
+              const isShapeMode = shapeModes.includes(mode);
+              
+              // Handle shape drawing
+              if (isShapeMode && isDrawingEnabled) {
+                handleShapeDrawing(x, y, gesture === 'draw');
+              }
               // Draw or erase based on gesture and mode
-              if (gesture === 'draw' && mode === 'draw' && isDrawingEnabled) {
+              else if (gesture === 'draw' && mode === 'draw' && isDrawingEnabled) {
                 handleDrawing(x, y);
               } else if (mode === 'erase' && isDrawingEnabled && (gesture === 'erase' || gesture === 'draw')) {
                 handleDrawing(x, y);
@@ -279,7 +472,7 @@ const CanvasArea = () => {
         tracks.forEach(track => track.stop());
       }
     };
-  }, [mode, isDrawingEnabled, handleDrawing, resetDrawing]);
+  }, [mode, isDrawingEnabled, handleDrawing, handleShapeDrawing, resetDrawing]);
 
   // Detect gesture from landmarks
   const detectGesture = (landmarks) => {

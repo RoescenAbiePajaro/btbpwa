@@ -23,6 +23,26 @@ const Toolbar = ({
       <div className="toolbar-divider"></div>
 
       <div className="toolbar-section">
+        <button onClick={() => setMode('line')} className={`tool-btn ${mode === 'line' ? 'active' : ''}`}>
+          📏 Line
+        </button>
+        <button onClick={() => setMode('rectangle')} className={`tool-btn ${mode === 'rectangle' ? 'active' : ''}`}>
+          ⬜ Rectangle
+        </button>
+        <button onClick={() => setMode('square')} className={`tool-btn ${mode === 'square' ? 'active' : ''}`}>
+          🟦 Square
+        </button>
+        <button onClick={() => setMode('circle')} className={`tool-btn ${mode === 'circle' ? 'active' : ''}`}>
+          ⭕ Circle
+        </button>
+        <button onClick={() => setMode('triangle')} className={`tool-btn ${mode === 'triangle' ? 'active' : ''}`}>
+          🔺 Triangle
+        </button>
+      </div>
+
+      <div className="toolbar-divider"></div>
+
+      <div className="toolbar-section">
         <button onClick={onToggleDrawing} className={`tool-btn ${isDrawingEnabled ? 'active' : 'inactive'}`}>
           {isDrawingEnabled ? '✋ Drawing ON' : '🔒 Drawing OFF'}
         </button>

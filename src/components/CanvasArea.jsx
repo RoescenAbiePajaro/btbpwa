@@ -34,6 +34,7 @@ const CanvasArea = () => {
   const animationRef = useRef(null);
   const brushSizeRef = useRef(DEFAULT_BRUSH_SIZE);
   const eraserSizeRef = useRef(DEFAULT_ERASER_SIZE);
+  const pointBufferRef = useRef([]);
 
   // Initialize canvas
   useEffect(() => {
@@ -59,18 +60,63 @@ const CanvasArea = () => {
     }));
   }, []);
 
-  // Drawing function
+  // Smooth coordinates using moving average to reduce jitter
+  const smoothCoordinates = useCallback((x, y) => {
+    const bufferSize = 3;
+    pointBufferRef.current.push({ x, y });
+    
+    if (pointBufferRef.current.length > bufferSize) {
+      pointBufferRef.current.shift();
+    }
+    
+    if (pointBufferRef.current.length < bufferSize) {
+      return { x, y };
+    }
+    
+    const sumX = pointBufferRef.current.reduce((sum, p) => sum + p.x, 0);
+    const sumY = pointBufferRef.current.reduce((sum, p) => sum + p.y, 0);
+    
+    return {
+      x: sumX / bufferSize,
+      y: sumY / bufferSize
+    };
+  }, []);
+
+  // Drawing function with smoothing and proper erasing
   const drawLine = useCallback((fromX, fromY, toX, toY, color, size, isErasing) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    ctx.beginPath();
-    ctx.moveTo(fromX, fromY);
-    ctx.lineTo(toX, toY);
-    ctx.strokeStyle = isErasing ? '#FFFFFF' : color;
+    
+    // Save context state
+    ctx.save();
+    
+    if (isErasing) {
+      // Use destination-out for proper erasing (makes pixels transparent)
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = color;
+    }
+    
     ctx.lineWidth = size;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    
+    // Use quadratic curve for smoother lines
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    
+    // Calculate midpoint for smooth quadratic curve
+    const midX = (fromX + toX) / 2;
+    const midY = (fromY + toY) / 2;
+    
+    ctx.quadraticCurveTo(fromX, fromY, midX, midY);
+    ctx.lineTo(toX, toY);
     ctx.stroke();
+    
+    // Restore context state
+    ctx.restore();
   }, []);
 
   // Handle drawing with coordinate transformation for mirror
@@ -81,16 +127,19 @@ const CanvasArea = () => {
     const color = isErasing ? '#FFFFFF' : brushColor;
     const size = isErasing ? eraserSizeRef.current : brushSizeRef.current;
 
+    // Apply smoothing to reduce jitter
+    const smoothed = smoothCoordinates(x, y);
+
     // Transform X coordinate for mirror (flip horizontally)
     const canvas = canvasRef.current;
-    const transformedX = canvas.width - x;
+    const transformedX = canvas.width - smoothed.x;
 
     if (lastPointRef.current) {
       drawLine(
         lastPointRef.current.x,
         lastPointRef.current.y,
         transformedX,
-        y,
+        smoothed.y,
         color,
         size,
         isErasing
@@ -98,11 +147,12 @@ const CanvasArea = () => {
       saveState();
     }
 
-    lastPointRef.current = { x: transformedX, y };
-  }, [mode, brushColor, isDrawingEnabled, drawLine, saveState]);
+    lastPointRef.current = { x: transformedX, y: smoothed.y };
+  }, [mode, brushColor, isDrawingEnabled, drawLine, saveState, smoothCoordinates]);
 
   const resetDrawing = useCallback(() => {
     lastPointRef.current = null;
+    pointBufferRef.current = [];
   }, []);
 
   // Sync refs with state for brush/eraser sizes
@@ -183,7 +233,7 @@ const CanvasArea = () => {
               // Draw or erase based on gesture and mode
               if (gesture === 'draw' && mode === 'draw' && isDrawingEnabled) {
                 handleDrawing(x, y);
-              } else if (gesture === 'erase' && mode === 'erase' && isDrawingEnabled) {
+              } else if (mode === 'erase' && isDrawingEnabled && (gesture === 'erase' || gesture === 'draw')) {
                 handleDrawing(x, y);
               } else {
                 resetDrawing();

@@ -7,7 +7,7 @@ import GuideModal from './GuideModal';
 import KeyboardText from './KeyboardText';
 import { useHandGesture } from '../hooks/useHandGesture';
 import { mapToCanvas, isIndexFingerOnly, resetLastPoint, setLastPoint, getLastPoint } from '../services/gestureProcessor';
-import { drawLine, clearCanvas, undo, redo, saveCanvasState, restoreCanvasState } from '../services/drawing';
+import { drawLine, clearCanvas, undo, redo, restoreCanvasState } from '../services/drawing';
 import { exportAsPDF, exportAsImage, exportAsPPTX } from '../services/exportUtils';
 import { saveWorkToGallery } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -24,8 +24,9 @@ const CanvasArea = () => {
   const [showGuide, setShowGuide] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [keyboardText, setKeyboardText] = useState(null);
-  const { logout } = useAuth();
   const [handDetected, setHandDetected] = useState(false);
+  const [modelStatus, setModelStatus] = useState('Loading...');
+  const { logout } = useAuth();
 
   // Initialize canvas
   useEffect(() => {
@@ -37,9 +38,9 @@ const CanvasArea = () => {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     const initialState = canvas.toDataURL();
     setHistory({ undoStack: [initialState], redoStack: [] });
+    console.log('Canvas initialized');
   }, []);
 
-  // Save state after drawing (throttled)
   const saveState = useCallback(() => {
     const newState = canvasRef.current.toDataURL();
     setHistory(prev => ({
@@ -48,29 +49,39 @@ const CanvasArea = () => {
     }));
   }, []);
 
-  // Hand gesture callback with visual feedback
   const handleGesture = useCallback((landmarks, detected) => {
     setHandDetected(detected);
     if (mode === 'keyboard') return;
+    
+    if (!detected || !landmarks) {
+      resetLastPoint();
+      return;
+    }
+    
     if (!isIndexFingerOnly(landmarks)) {
       resetLastPoint();
       return;
     }
+    
     const canvas = canvasRef.current;
     const video = webcamRef.current?.video;
-    if (!canvas || !video) return;
-    const point = landmarks[8];
-    const { x, y } = mapToCanvas(point, video, canvas);
-    const last = getLastPoint();
-    if (last) {
-      drawLine(canvas, x, y, mode === 'draw' ? brushColor : '#FFFFFF', mode === 'draw' ? brushSize : eraserSize, mode, saveState);
-    } else {
-      drawLine(canvas, x, y, mode === 'draw' ? brushColor : '#FFFFFF', mode === 'draw' ? brushSize : eraserSize, mode, saveState);
+    if (!canvas || !video) {
+      console.warn('Canvas or video not ready');
+      return;
     }
+    
+    const point = landmarks[8]; // Index finger tip
+    const { x, y } = mapToCanvas(point, video, canvas);
+    
+    // Debug logging
+    console.log(`Drawing at (${x}, ${y})`);
+    
+    const last = getLastPoint();
+    drawLine(canvas, x, y, mode === 'draw' ? brushColor : '#FFFFFF', mode === 'draw' ? brushSize : eraserSize, mode, saveState);
     setLastPoint({ x, y });
   }, [mode, brushColor, brushSize, eraserSize, saveState]);
 
-  useHandGesture(webcamRef, handleGesture);
+  const { isModelReady } = useHandGesture(webcamRef, handleGesture, setModelStatus);
 
   const handleUndo = () => {
     const newHistory = undo(canvasRef.current, history);
@@ -104,6 +115,11 @@ const CanvasArea = () => {
 
   return (
     <div className="canvas-container">
+      {/* Model status indicator */}
+      <div style={{ position: 'fixed', top: 10, left: 10, background: '#000', color: '#0f0', padding: 5, zIndex: 999, fontSize: 12 }}>
+        Model: {modelStatus} | Hand: {handDetected ? 'YES' : 'NO'} | Mode: {mode}
+      </div>
+      
       <Toolbar
         mode={mode} setMode={setMode}
         brushColor={brushColor} setBrushColor={setBrushColor}
@@ -128,8 +144,10 @@ const CanvasArea = () => {
             height: 480,
             facingMode: "user"
           }}
-          mirrored={false}  // We handle mirroring in CSS and coordinate mapping
-          style={{ transform: 'scaleX(-1)' }} // Mirror for natural feel
+          mirrored={false}
+          style={{ transform: 'scaleX(-1)' }}
+          onUserMedia={() => console.log('Webcam ready')}
+          onUserMediaError={(err) => console.error('Webcam error:', err)}
         />
       </div>
       {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}

@@ -1,33 +1,41 @@
-
 // src/services/drawing.js
 let lastX = null, lastY = null;
 
 export const drawLine = (canvas, x, y, color, size, mode, onDrawEnd) => {
   const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  
+  ctx.save();
+  
   if (mode === 'erase') {
     ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
   } else {
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
   }
+  
   ctx.lineWidth = size;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-
+  
   if (lastX !== null && lastY !== null) {
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(x, y);
     ctx.stroke();
   } else {
+    // First point: draw a dot
     ctx.beginPath();
     ctx.arc(x, y, size / 2, 0, Math.PI * 2);
     ctx.fill();
   }
-
+  
   lastX = x;
   lastY = y;
+  ctx.restore();
+  
   if (onDrawEnd) onDrawEnd();
 };
 

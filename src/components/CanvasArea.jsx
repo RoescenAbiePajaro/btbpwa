@@ -25,7 +25,7 @@ const CanvasArea = () => {
   const lastSavedStateRef = useRef(null);
   const [handDetected, setHandDetected] = useState(false);
   const [modelStatus, setModelStatus] = useState('Initializing...');
-  const [isDrawingEnabled, setIsDrawingEnabled] = useState(true);
+  const [isDrawingEnabled, setIsDrawingEnabled] = useState(false);
   const [currentGesture, setCurrentGesture] = useState('none');
   const [showGallery, setShowGallery] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -833,19 +833,19 @@ const CanvasArea = () => {
         return 'draw';
       }
       
-      // Peace sign (index + middle)
+      // Peace sign (index + middle) - stop drawing
       if (fingers.index && fingers.middle && !fingers.ring && !fingers.pinky) {
         return 'stop';
       }
       
-      // Thumb up (more lenient)
+      // Thumb up (more lenient) - erase
       if (fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
         return 'erase';
       }
       
-      // Open palm (all fingers) - also can be used for drawing
+      // Open palm (all fingers) - do nothing (high five)
       if (fingers.thumb && fingers.index && fingers.middle && fingers.ring && fingers.pinky) {
-        return 'draw';
+        return 'none';
       }
       
       return 'none';

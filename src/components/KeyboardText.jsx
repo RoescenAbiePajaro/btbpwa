@@ -252,7 +252,7 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
             background: obj.selected ? 'rgba(100, 255, 218, 0.3)' : 'transparent',
             border: obj.selected ? '2px solid #64FFDA' : 'none',
             zIndex: draggingIndex === index ? 1002 : 100,
-            textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+            WebkitTextStroke: '1px black',
             pointerEvents: isActive ? 'auto' : 'none',
             whiteSpace: 'nowrap'
           }}

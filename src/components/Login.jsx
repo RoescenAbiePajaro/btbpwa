@@ -50,7 +50,7 @@ const Login = ({ setAuth }) => {
         <div className="login-header">
           <div className="logo-container">
             <img
-              src="/icon/logo.png"
+              src="logo.png"
               alt="Beyond The Brush"
               className="logo"
               width="80"
@@ -59,7 +59,7 @@ const Login = ({ setAuth }) => {
             />
           </div>
           <h1 className="login-title">
-            Welcome Back
+            Beyond The Brush
           </h1>
           <p className="login-subtitle">
             Login to your account to continue

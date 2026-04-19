@@ -1,10 +1,12 @@
-// src/components/Gallery.jsx
 import React, { useEffect, useState } from 'react';
 import { getUserGallery, loadWorkFromGallery, deleteWorkFromGallery, deleteMultipleWorksFromGallery } from '../services/api';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import PptxGenJS from 'pptxgenjs';
 import JSZip from 'jszip';
+
+const CANVAS_WIDTH = 1440;
+const CANVAS_HEIGHT = 768;
 
 const Gallery = ({ onClose, onLoad }) => {
   const [works, setWorks] = useState([]);
@@ -31,12 +33,21 @@ const Gallery = ({ onClose, onLoad }) => {
   }, []);
 
   // Function to composite artwork onto template
-  const compositeWithTemplate = async (canvasDataUrl) => {
+  const compositeWithTemplate = async (savedData) => {
     return new Promise((resolve, reject) => {
       if (!templateImage) {
         reject(new Error('Template image not loaded'));
         return;
       }
+
+      // Extract canvas image from saved data
+      const canvasImageData = typeof savedData === 'string' 
+        ? savedData 
+        : savedData.canvasImage;
+      
+      const textObjects = typeof savedData === 'object' && savedData.textObjects
+        ? savedData.textObjects 
+        : [];
 
       const artworkImg = new Image();
       artworkImg.onload = () => {
@@ -63,6 +74,34 @@ const Gallery = ({ onClose, onLoad }) => {
           const y = (canvas.height - scaledHeight) / 2;
 
           ctx.drawImage(artworkImg, x, y, scaledWidth, scaledHeight);
+          
+          // Draw text objects on top if they exist
+          if (textObjects && textObjects.length > 0) {
+            const scaleX = canvas.width / CANVAS_WIDTH;
+            const scaleY = canvas.height / CANVAS_HEIGHT;
+            
+            textObjects.forEach((obj) => {
+              ctx.save();
+              ctx.fillStyle = obj.color || '#000000';
+              ctx.font = `${(obj.fontSize || 24) * scaleY}px ${obj.fontFamily || 'Arial'}`;
+              ctx.textBaseline = 'top';
+              ctx.textAlign = 'left';
+              
+              // Add shadow for better visibility
+              ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+              ctx.shadowBlur = 2;
+              ctx.shadowOffsetX = 1;
+              ctx.shadowOffsetY = 1;
+              
+              ctx.fillText(
+                obj.text, 
+                obj.position.x * scaleX, 
+                obj.position.y * scaleY
+              );
+              
+              ctx.restore();
+            });
+          }
 
           resolve(canvas.toDataURL('image/png'));
         } catch (error) {
@@ -70,13 +109,14 @@ const Gallery = ({ onClose, onLoad }) => {
         }
       };
       artworkImg.onerror = () => reject(new Error('Failed to load artwork'));
-      artworkImg.src = canvasDataUrl;
+      artworkImg.src = canvasImageData;
     });
   };
 
   const handleLoad = async (id) => {
-    const canvasData = await loadWorkFromGallery(id);
-    onLoad(canvasData);
+    const savedData = await loadWorkFromGallery(id);
+    // Pass the entire saved data object to onLoad
+    onLoad(savedData);
     onClose();
   };
 
@@ -100,7 +140,6 @@ const Gallery = ({ onClose, onLoad }) => {
 
   const exportAsImage = async (work) => {
     try {
-      // Composite with template for export
       const compositedImage = await compositeWithTemplate(work.canvasData);
       const response = await fetch(compositedImage);
       const blob = await response.blob();
@@ -112,6 +151,7 @@ const Gallery = ({ onClose, onLoad }) => {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error exporting image:', error);
+      alert('Failed to export image');
     }
   };
 
@@ -119,7 +159,6 @@ const Gallery = ({ onClose, onLoad }) => {
     return new Promise(async (resolve, reject) => {
       try {
         const pdf = new jsPDF();
-        // Composite with template for export
         const compositedImage = await compositeWithTemplate(work.canvasData);
         const response = await fetch(compositedImage);
         const blob = await response.blob();
@@ -169,7 +208,6 @@ const Gallery = ({ onClose, onLoad }) => {
           color: '363636'
         });
         
-        // Composite with template for export
         const compositedImage = await compositeWithTemplate(work.canvasData);
         const imageData = await fetch(compositedImage).then(res => res.arrayBuffer());
         const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
@@ -208,6 +246,7 @@ const Gallery = ({ onClose, onLoad }) => {
       }
     } catch (error) {
       console.error('Export failed:', error);
+      alert('Export failed');
     }
   };
 
@@ -528,7 +567,7 @@ const Gallery = ({ onClose, onLoad }) => {
                   onClick={() => handleBatchExport('image')}
                   className="export-option-btn export-option-btn--image"
                 >
-                  <div className="export-option-icon">�️</div>
+                  <div className="export-option-icon">🖼️</div>
                   <div className="export-option-title">Export as ZIP</div>
                   <div className="export-option-desc">All images in one ZIP file</div>
                 </button>

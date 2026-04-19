@@ -1,5 +1,3 @@
-
-// src/services/api.js
 import axios from 'axios';
 
 const api = axios.create({
@@ -19,6 +17,7 @@ export const saveWorkToGallery = async (thumbnail, canvasData) => {
 
 export const loadWorkFromGallery = async (workId) => {
   const res = await api.get(`/gallery/${workId}`);
+  // Return the entire saved work data (which now contains canvasData with text objects)
   return res.data.canvasData;
 };
 

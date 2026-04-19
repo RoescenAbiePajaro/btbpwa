@@ -1,4 +1,3 @@
-// src/components/CanvasArea.jsx
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Toolbar from './Toolbar';
 import Gallery from './Gallery';
@@ -665,7 +664,7 @@ const CanvasArea = () => {
     try {
       const canvas = canvasRef.current;
       
-      // Create a temporary canvas to composite text objects
+      // Create a temporary canvas to composite text objects for thumbnail only
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = canvas.width;
       tempCanvas.height = canvas.height;
@@ -674,18 +673,15 @@ const CanvasArea = () => {
       // Draw the original canvas
       ctx.drawImage(canvas, 0, 0);
       
-      // Draw text objects on top
-      console.log('Saving canvas with text objects:', textObjects);
+      // Draw text objects on top for thumbnail preview
       if (textObjects && textObjects.length > 0) {
-        textObjects.forEach((obj, index) => {
-          console.log(`Drawing text ${index}:`, obj);
-          // Set text properties with better defaults
-          ctx.fillStyle = obj.color || '#000000'; // Default to black instead of white
+        textObjects.forEach((obj) => {
+          ctx.fillStyle = obj.color || '#000000';
           ctx.font = `${obj.fontSize || 24}px ${obj.fontFamily || 'Arial'}`;
           ctx.textBaseline = 'top';
           ctx.textAlign = 'left';
           
-          // Add shadow for better visibility
+          // Add shadow for better visibility in thumbnail
           ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
           ctx.shadowBlur = 2;
           ctx.shadowOffsetX = 1;
@@ -693,20 +689,24 @@ const CanvasArea = () => {
           
           ctx.fillText(obj.text, obj.position.x, obj.position.y);
           
-          // Reset shadow
           ctx.shadowColor = 'transparent';
           ctx.shadowBlur = 0;
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = 0;
         });
-      } else {
-        console.log('No text objects to save');
       }
       
       const thumbnail = tempCanvas.toDataURL('image/png', 0.1);
-      const canvasData = tempCanvas.toDataURL();
-      console.log('Canvas data length:', canvasData.length);
-      await saveWorkToGallery(thumbnail, canvasData);
+      
+      // Save BOTH the canvas image AND text objects separately
+      const canvasData = canvas.toDataURL();
+      const saveData = {
+        canvasImage: canvasData,
+        textObjects: textObjects // Save text objects separately
+      };
+      
+      console.log('Saving with text objects:', textObjects.length);
+      await saveWorkToGallery(thumbnail, saveData);
       alert('Saved to gallery successfully!');
     } catch (error) {
       console.error('Save error:', error);
@@ -738,26 +738,50 @@ const CanvasArea = () => {
     setShowGallery(true);
   };
 
-  const handleLoadFromGallery = (canvasData) => {
-    console.log('Loading from gallery, canvas data length:', canvasData.length);
+  const handleLoadFromGallery = (savedData) => {
+    console.log('Loading from gallery:', savedData);
+    
+    // Check if savedData is a string (old format) or object (new format with text objects)
+    let canvasImageData;
+    let loadedTextObjects = [];
+    
+    if (typeof savedData === 'string') {
+      // Old format - just canvas data URL
+      canvasImageData = savedData;
+      loadedTextObjects = [];
+    } else if (typeof savedData === 'object') {
+      // New format - contains canvasImage and textObjects
+      canvasImageData = savedData.canvasImage;
+      loadedTextObjects = savedData.textObjects || [];
+    } else {
+      console.error('Invalid saved data format');
+      return;
+    }
+    
     const img = new Image();
     img.onload = () => {
       console.log('Image loaded, drawing to canvas');
       const ctx = canvasRef.current.getContext('2d');
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.drawImage(img, 0, 0);
+      
+      // Set the text objects
+      setTextObjects(loadedTextObjects);
+      console.log('Loaded text objects:', loadedTextObjects.length);
+      
+      // Save state with both canvas and text objects
       const newState = {
         canvas: canvasRef.current.toDataURL(),
-        textObjects: [] // Text should already be composited in the image
+        textObjects: loadedTextObjects
       };
-      setTextObjects([]); // Clear text objects since they're baked into the canvas
       setHistory({ undoStack: [newState], redoStack: [] });
-      console.log('Gallery item loaded successfully');
+      
+      console.log('Gallery item loaded successfully with editable text');
     };
     img.onerror = () => {
       console.error('Failed to load image from gallery');
     };
-    img.src = canvasData;
+    img.src = canvasImageData;
   };
 
   return (

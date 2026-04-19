@@ -361,7 +361,7 @@ const CanvasArea = () => {
     eraserSizeRef.current = eraserSize;
   }, [eraserSize]);
 
-  // Initialize MediaPipe Hands
+  // Initialize MediaPipe Hands - separate from mode changes
   useEffect(() => {
     const initHandTracking = async () => {
       try {
@@ -411,51 +411,6 @@ const CanvasArea = () => {
           minTrackingConfidence: 0.5
         });
 
-        hands.onResults((results) => {
-          // Skip hand tracking if in keyboard mode or dragging text
-          if (isKeyboardMode || isDraggingTextRef.current) {
-            return;
-          }
-          
-          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-            setHandDetected(true);
-            const landmarks = results.multiHandLandmarks[0];
-            const gesture = detectGesture(landmarks);
-            setCurrentGesture(gesture);
-            
-            // Get index finger tip position
-            const indexTip = landmarks[8];
-            const canvas = canvasRef.current;
-            
-            if (canvas && indexTip) {
-              // Don't transform here, transform in handleDrawing
-              const x = indexTip.x * canvas.width;
-              const y = indexTip.y * canvas.height;
-              
-              // Check if we're in a shape mode
-              const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
-              const isShapeMode = shapeModes.includes(mode);
-              
-              // Handle shape drawing
-              if (isShapeMode && isDrawingEnabled) {
-                handleShapeDrawing(x, y, gesture === 'draw');
-              }
-              // Draw or erase based on gesture and mode
-              else if (gesture === 'draw' && mode === 'draw' && isDrawingEnabled) {
-                handleDrawing(x, y);
-              } else if (mode === 'erase' && isDrawingEnabled && (gesture === 'erase' || gesture === 'draw')) {
-                handleDrawing(x, y);
-              } else {
-                resetDrawing();
-              }
-            }
-          } else {
-            setHandDetected(false);
-            setCurrentGesture('none');
-            resetDrawing();
-          }
-        });
-
         handsRef.current = hands;
         setModelStatus('Ready! Show your hand to draw');
 
@@ -492,6 +447,56 @@ const CanvasArea = () => {
         tracks.forEach(track => track.stop());
       }
     };
+  }, [isKeyboardMode]); // Only re-initialize when keyboard mode changes
+
+  // Update hands results handler when mode or drawing state changes
+  useEffect(() => {
+    if (handsRef.current) {
+      handsRef.current.onResults((results) => {
+        // Skip hand tracking if in keyboard mode or dragging text
+        if (isKeyboardMode || isDraggingTextRef.current) {
+          return;
+        }
+        
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          setHandDetected(true);
+          const landmarks = results.multiHandLandmarks[0];
+          const gesture = detectGesture(landmarks);
+          setCurrentGesture(gesture);
+          
+          // Get index finger tip position
+          const indexTip = landmarks[8];
+          const canvas = canvasRef.current;
+          
+          if (canvas && indexTip) {
+            // Don't transform here, transform in handleDrawing
+            const x = indexTip.x * canvas.width;
+            const y = indexTip.y * canvas.height;
+            
+            // Check if we're in a shape mode
+            const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
+            const isShapeMode = shapeModes.includes(mode);
+            
+            // Handle shape drawing
+            if (isShapeMode && isDrawingEnabled) {
+              handleShapeDrawing(x, y, gesture === 'draw');
+            }
+            // Draw or erase based on gesture and mode
+            else if (gesture === 'draw' && mode === 'draw' && isDrawingEnabled) {
+              handleDrawing(x, y);
+            } else if (mode === 'erase' && isDrawingEnabled && (gesture === 'erase' || gesture === 'draw')) {
+              handleDrawing(x, y);
+            } else {
+              resetDrawing();
+            }
+          }
+        } else {
+          setHandDetected(false);
+          setCurrentGesture('none');
+          resetDrawing();
+        }
+      });
+    }
   }, [mode, isDrawingEnabled, handleDrawing, handleShapeDrawing, resetDrawing, isKeyboardMode]);
 
   // Detect gesture from landmarks

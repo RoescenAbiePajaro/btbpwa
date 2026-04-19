@@ -7,7 +7,7 @@ const Toolbar = ({
   isKeyboardMode, onToggleKeyboardMode 
 }) => {
   const colors = [
-    '#000000', '#FF0000', '#FF69B4', '#FFD700', '#0000FF', '#00FF00', '#800080', '#FFA500'
+    '#000000', '#FF69B4', '#0000FF', '#FFD700', '#00FF00'
   ];
 
   return (

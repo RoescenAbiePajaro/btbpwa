@@ -1,3 +1,4 @@
+// src/components/CanvasArea.jsx
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Toolbar from './Toolbar';
 import Gallery from './Gallery';

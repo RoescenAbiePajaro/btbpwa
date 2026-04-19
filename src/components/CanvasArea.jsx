@@ -99,6 +99,7 @@ const CanvasArea = () => {
   const isDrawingShapeRef = useRef(false);
   const canvasSnapshotRef = useRef(null);
   const isDraggingTextRef = useRef(false); // Track if we're dragging text
+  const isMouseDrawingRef = useRef(false); // Track if we're drawing with mouse
 
   // Initialize canvas
   useEffect(() => {
@@ -451,7 +452,144 @@ const CanvasArea = () => {
     shapeStartRef.current = null;
     isDrawingShapeRef.current = false;
     canvasSnapshotRef.current = null;
+    isMouseDrawingRef.current = false;
   }, [saveState]);
+
+  const handleMouseDown = useCallback((e) => {
+    if (!isDrawingEnabled || isKeyboardMode || isDraggingTextRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
+    const isShapeMode = shapeModes.includes(mode);
+    
+    if (isShapeMode) {
+      // Start shape drawing
+      saveCanvasSnapshot();
+      shapeStartRef.current = { x, y };
+      isDrawingShapeRef.current = true;
+      isMouseDrawingRef.current = true;
+    } else if (mode === 'draw' || mode === 'erase') {
+      // Start regular drawing
+      lastPointRef.current = { x, y };
+      isDrawingRef.current = true;
+      isMouseDrawingRef.current = true;
+    }
+  }, [mode, isDrawingEnabled, isKeyboardMode, saveCanvasSnapshot]);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!isMouseDrawingRef.current || !isDrawingEnabled || isKeyboardMode || isDraggingTextRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
+    const isShapeMode = shapeModes.includes(mode);
+    
+    if (isShapeMode && isDrawingShapeRef.current && shapeStartRef.current) {
+      // Update shape preview
+      restoreCanvasSnapshot();
+      const start = shapeStartRef.current;
+      const color = brushColor;
+      const size = brushSizeRef.current;
+      
+      switch (mode) {
+        case 'line':
+          drawShapeLine(start.x, start.y, x, y, color, size);
+          break;
+        case 'rectangle':
+          drawShapeRectangle(start.x, start.y, x, y, color, size);
+          break;
+        case 'square':
+          drawShapeSquare(start.x, start.y, x, y, color, size);
+          break;
+        case 'circle':
+          drawShapeCircle(start.x, start.y, x, y, color, size);
+          break;
+        case 'triangle':
+          drawShapeTriangle(start.x, start.y, x, y, color, size);
+          break;
+      }
+    } else if ((mode === 'draw' || mode === 'erase') && lastPointRef.current) {
+      // Regular drawing
+      const isErasing = mode === 'erase';
+      const color = isErasing ? '#FFFFFF' : brushColor;
+      const size = isErasing ? eraserSizeRef.current : brushSizeRef.current;
+      
+      drawLine(
+        lastPointRef.current.x,
+        lastPointRef.current.y,
+        x,
+        y,
+        color,
+        size,
+        isErasing
+      );
+      
+      lastPointRef.current = { x, y };
+    }
+  }, [mode, isDrawingEnabled, isKeyboardMode, brushColor, restoreCanvasSnapshot, drawShapeLine, drawShapeRectangle, drawShapeSquare, drawShapeCircle, drawShapeTriangle, drawLine]);
+
+  const handleMouseUp = useCallback((e) => {
+    if (!isMouseDrawingRef.current || !isDrawingEnabled || isKeyboardMode || isDraggingTextRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
+    const isShapeMode = shapeModes.includes(mode);
+    
+    if (isShapeMode && isDrawingShapeRef.current && shapeStartRef.current) {
+      // Finalize shape
+      restoreCanvasSnapshot();
+      const start = shapeStartRef.current;
+      const color = brushColor;
+      const size = brushSizeRef.current;
+      
+      switch (mode) {
+        case 'line':
+          drawShapeLine(start.x, start.y, x, y, color, size);
+          break;
+        case 'rectangle':
+          drawShapeRectangle(start.x, start.y, x, y, color, size);
+          break;
+        case 'square':
+          drawShapeSquare(start.x, start.y, x, y, color, size);
+          break;
+        case 'circle':
+          drawShapeCircle(start.x, start.y, x, y, color, size);
+          break;
+        case 'triangle':
+          drawShapeTriangle(start.x, start.y, x, y, color, size);
+          break;
+      }
+      
+      saveState();
+      shapeStartRef.current = null;
+      isDrawingShapeRef.current = false;
+      canvasSnapshotRef.current = null;
+    } else if ((mode === 'draw' || mode === 'erase') && isDrawingRef.current) {
+      // End regular drawing
+      saveState();
+      isDrawingRef.current = false;
+    }
+    
+    lastPointRef.current = null;
+    isMouseDrawingRef.current = false;
+  }, [mode, isDrawingEnabled, isKeyboardMode, brushColor, restoreCanvasSnapshot, drawShapeLine, drawShapeRectangle, drawShapeSquare, drawShapeCircle, drawShapeTriangle, saveState]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (isMouseDrawingRef.current) {
+      resetDrawing();
+    }
+  }, [resetDrawing]);
 
   // Sync refs with state for brush/eraser sizes
   useEffect(() => {
@@ -884,7 +1022,14 @@ const CanvasArea = () => {
       />
 
       <div className="canvas-main">
-        <canvas ref={canvasRef} className="drawing-canvas" />
+        <canvas 
+          ref={canvasRef} 
+          className="drawing-canvas"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+        />
         
         {/* Camera feed - visible and mirrored for natural POV */}
         <div className="camera-container" style={{ opacity: isKeyboardMode ? 0.5 : 1 }}>

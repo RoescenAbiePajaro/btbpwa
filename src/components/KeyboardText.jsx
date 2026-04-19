@@ -5,6 +5,7 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
   const [inputText, setInputText] = useState('');
   const [inputPos, setInputPos] = useState({ x: 720, y: 384 });
   const [isEditingInput, setIsEditingInput] = useState(false);
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [draggingIndex, setDraggingIndex] = useState(-1);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -25,30 +26,63 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
     }
   }, [draggingIndex, onTextDragging]);
 
-  // Add new text object
+  // Real-time text update for existing text objects
+  const updateTextInRealTime = useCallback(() => {
+    if (isEditingExisting && selectedIndex >= 0) {
+      setTextObjects(prev => prev.map((obj, i) => 
+        i === selectedIndex ? { ...obj, text: inputText } : obj
+      ));
+    }
+  }, [inputText, isEditingExisting, selectedIndex, setTextObjects]);
+
+  // Update text in real-time when input changes
+  useEffect(() => {
+    if (isEditingExisting && selectedIndex >= 0) {
+      const timeoutId = setTimeout(() => {
+        updateTextInRealTime();
+      }, 100); // Debounce to avoid excessive updates
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [inputText, isEditingExisting, selectedIndex, updateTextInRealTime]);
+
+  // Add new text object or update existing
   const addTextObject = useCallback(() => {
     if (!inputText.trim()) return;
     
-    const newTextObject = {
-      id: Date.now(),
-      text: inputText,
-      position: { x: inputPos.x, y: inputPos.y },
-      color: '#FFFFFF',
-      fontSize: 24,
-      fontFamily: 'Arial',
-      selected: false
-    };
+    if (isEditingExisting && selectedIndex >= 0) {
+      // Update existing text object (final update)
+      setTextObjects(prev => prev.map((obj, i) => 
+        i === selectedIndex ? { ...obj, text: inputText } : obj
+      ));
+    } else {
+      // Add new text object
+      const newTextObject = {
+        id: Date.now(),
+        text: inputText,
+        position: { x: inputPos.x, y: inputPos.y },
+        color: '#FFFFFF',
+        fontSize: 24,
+        fontFamily: 'Arial',
+        selected: false
+      };
+      setTextObjects(prev => [...prev, newTextObject]);
+    }
     
-    setTextObjects(prev => [...prev, newTextObject]);
     setInputText('');
     setIsEditingInput(false);
-  }, [inputText, inputPos, setTextObjects]);
+    setIsEditingExisting(false);
+    setSelectedIndex(-1);
+  }, [inputText, inputPos, isEditingExisting, selectedIndex, setTextObjects]);
 
   // Delete selected text object
   const deleteSelected = useCallback(() => {
     if (selectedIndex >= 0) {
       setTextObjects(prev => prev.filter((_, i) => i !== selectedIndex));
       setSelectedIndex(-1);
+      setIsEditingExisting(false);
+      setInputText('');
+      setIsEditingInput(false);
     }
   }, [selectedIndex, setTextObjects]);
 
@@ -103,10 +137,28 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
     if (draggingIndex >= 0) {
       e.preventDefault();
       e.stopPropagation();
+      
+      // Start editing the dragged text
+      const obj = textObjects[draggingIndex];
+      setInputText(obj.text);
+      setInputPos(obj.position);
+      setIsEditingInput(true);
+      setIsEditingExisting(true);
+      setSelectedIndex(draggingIndex);
+      
       setDraggingIndex(-1);
       dragStartPosRef.current = null;
     }
-  }, [draggingIndex]);
+  }, [draggingIndex, textObjects]);
+
+  // Done editing function
+  const doneEdit = useCallback(() => {
+    setIsEditingInput(false);
+    setIsEditingExisting(false);
+    setInputText('');
+    setSelectedIndex(-1);
+    setTextObjects(prev => prev.map(o => ({ ...o, selected: false })));
+  }, [setTextObjects]);
 
   // Handle keyboard events
   const handleKeyDown = useCallback((e) => {
@@ -116,17 +168,14 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
       e.preventDefault();
       addTextObject();
     } else if (e.key === 'Escape') {
-      setIsEditingInput(false);
-      setInputText('');
-      setSelectedIndex(-1);
-      setTextObjects(prev => prev.map(o => ({ ...o, selected: false })));
+      doneEdit();
     } else if (e.key === 'Delete') {
       if (selectedIndex >= 0 && !isEditingInput) {
         e.preventDefault();
         deleteSelected();
       }
     }
-  }, [isActive, isEditingInput, addTextObject, selectedIndex, deleteSelected, setTextObjects]);
+  }, [isActive, isEditingInput, addTextObject, selectedIndex, deleteSelected, doneEdit]);
 
   // Add keyboard event listener
   useEffect(() => {
@@ -190,9 +239,9 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
             }}
           />
           <button
-            onClick={addTextObject}
+            onClick={isEditingExisting ? doneEdit : addTextObject}
             style={{
-              background: '#64FFDA',
+              background: isEditingExisting ? '#FFA500' : '#64FFDA',
               color: 'black',
               border: 'none',
               padding: '8px 16px',
@@ -202,7 +251,7 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
               fontWeight: 'bold'
             }}
           >
-            Add Text
+            {isEditingExisting ? 'Done Edit' : 'Add Text'}
           </button>
           {selectedIndex >= 0 && (
             <button
@@ -236,6 +285,7 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
             setInputText(obj.text);
             setInputPos(obj.position);
             setIsEditingInput(true);
+            setIsEditingExisting(true);
             setSelectedIndex(index);
           }}
           style={{

@@ -32,6 +32,61 @@ const CanvasArea = () => {
   const [isKeyboardMode, setIsKeyboardMode] = useState(false);
   const { logout } = useAuth();
 
+  // Cleanup camera and logout on navigation/unload
+  const cleanupAndLogout = useCallback(() => {
+    // Stop camera stream
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+    }
+    
+    // Close MediaPipe hands
+    if (handsRef.current) {
+      handsRef.current.close();
+    }
+    
+    // Cancel animation frame
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    
+    // Logout user
+    logout();
+  }, [logout]);
+
+  // Handle browser navigation events
+  useEffect(() => {
+    const handlePopState = (event) => {
+      event.preventDefault();
+      cleanupAndLogout();
+    };
+
+    const handleBeforeUnload = (event) => {
+      cleanupAndLogout();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        cleanupAndLogout();
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Prevent back navigation
+    window.history.pushState(null, null, window.location.pathname);
+
+    return () => {
+      // Cleanup event listeners
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [cleanupAndLogout]);
+
   const lastPointRef = useRef(null);
   const handsRef = useRef(null);
   const animationRef = useRef(null);

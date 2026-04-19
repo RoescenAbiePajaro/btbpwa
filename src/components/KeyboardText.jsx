@@ -1,7 +1,7 @@
 // src/components/KeyboardText.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTextDragging }) => {
+const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTextDragging, onSaveState }) => {
   const [inputText, setInputText] = useState('');
   const [inputPos, setInputPos] = useState({ x: 720, y: 384 });
   const [isEditingInput, setIsEditingInput] = useState(false);
@@ -69,29 +69,45 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
       setTextObjects(prev => [...prev, newTextObject]);
     }
     
+    // Save state after adding/updating text
+    if (onSaveState) {
+      onSaveState();
+    }
+    
     setInputText('');
     setIsEditingInput(false);
     setIsEditingExisting(false);
     setSelectedIndex(-1);
-  }, [inputText, inputPos, isEditingExisting, selectedIndex, setTextObjects]);
+  }, [inputText, inputPos, isEditingExisting, selectedIndex, setTextObjects, onSaveState]);
 
   // Delete selected text object
   const deleteSelected = useCallback(() => {
     if (selectedIndex >= 0) {
       setTextObjects(prev => prev.filter((_, i) => i !== selectedIndex));
+      
+      // Save state after deleting text
+      if (onSaveState) {
+        onSaveState();
+      }
+      
       setSelectedIndex(-1);
       setIsEditingExisting(false);
       setInputText('');
       setIsEditingInput(false);
     }
-  }, [selectedIndex, setTextObjects]);
+  }, [selectedIndex, setTextObjects, onSaveState]);
 
   // Update text object
   const updateTextObject = useCallback((index, updates) => {
     setTextObjects(prev => prev.map((obj, i) => 
       i === index ? { ...obj, ...updates } : obj
     ));
-  }, [setTextObjects]);
+    
+    // Save state after updating text object
+    if (onSaveState) {
+      onSaveState();
+    }
+  }, [setTextObjects, onSaveState]);
 
   // Handle drag start
   const handleDragStart = useCallback((e, index) => {
@@ -155,11 +171,16 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
       e.preventDefault();
       e.stopPropagation();
       
+      // Save state after dragging text
+      if (onSaveState) {
+        onSaveState();
+      }
+      
       // Just end dragging, don't start editing automatically
       setDraggingIndex(-1);
       dragStartPosRef.current = null;
     }
-  }, [draggingIndex]);
+  }, [draggingIndex, onSaveState]);
 
   // Done editing function
   const doneEdit = useCallback(() => {
@@ -168,7 +189,12 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
     setInputText('');
     setSelectedIndex(-1);
     setTextObjects(prev => prev.map(o => ({ ...o, selected: false })));
-  }, [setTextObjects]);
+    
+    // Save state after finishing editing
+    if (onSaveState) {
+      onSaveState();
+    }
+  }, [setTextObjects, onSaveState]);
 
   // Handle keyboard events
   const handleKeyDown = useCallback((e) => {

@@ -20,6 +20,9 @@ const CanvasArea = () => {
   const [brushSize, setBrushSize] = useState(DEFAULT_BRUSH_SIZE);
   const [eraserSize, setEraserSize] = useState(DEFAULT_ERASER_SIZE);
   const [history, setHistory] = useState({ undoStack: [], redoStack: [] });
+  const saveTimeoutRef = useRef(null);
+  const isDrawingRef = useRef(false);
+  const lastSavedStateRef = useRef(null);
   const [handDetected, setHandDetected] = useState(false);
   const [modelStatus, setModelStatus] = useState('Initializing...');
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(true);
@@ -115,17 +118,47 @@ const CanvasArea = () => {
     }
   }, []);
 
-  // Save state function
-  const saveState = useCallback(() => {
-    const newState = {
-      canvas: canvasRef.current.toDataURL(),
-      textObjects: [...textObjects]
+  // Save state function with debouncing
+  const saveState = useCallback((force = false) => {
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    const saveNow = () => {
+      const currentState = {
+        canvas: canvasRef.current.toDataURL(),
+        textObjects: [...textObjects]
+      };
+
+      // Only save if state has actually changed
+      if (!lastSavedStateRef.current || 
+          lastSavedStateRef.current.canvas !== currentState.canvas ||
+          JSON.stringify(lastSavedStateRef.current.textObjects) !== JSON.stringify(currentState.textObjects)) {
+        
+        setHistory(prev => ({
+          undoStack: [...prev.undoStack, currentState],
+          redoStack: []
+        }));
+        lastSavedStateRef.current = currentState;
+      }
     };
-    setHistory(prev => ({
-      undoStack: [...prev.undoStack, newState],
-      redoStack: []
-    }));
+
+    if (force) {
+      saveNow();
+    } else {
+      // Debounce saves during drawing
+      saveTimeoutRef.current = setTimeout(saveNow, 500);
+    }
   }, [textObjects]);
+
+  // Save state immediately for text operations
+  const saveStateImmediate = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveState(true);
+  }, [saveState]);
 
   // Smooth coordinates using moving average to reduce jitter
   const smoothCoordinates = useCallback((x, y) => {
@@ -283,7 +316,7 @@ const CanvasArea = () => {
   }, []);
 
   // Handle drawing with coordinate transformation for mirror
-  const handleDrawing = useCallback((x, y) => {
+  const handleDrawing = useCallback((x, y, isStart = false, isEnd = false) => {
     // Don't draw if we're dragging text or in keyboard mode
     if (!isDrawingEnabled || isDraggingTextRef.current || isKeyboardMode) return;
 
@@ -308,7 +341,15 @@ const CanvasArea = () => {
         size,
         isErasing
       );
-      saveState();
+      
+      // Mark that we're actively drawing
+      isDrawingRef.current = true;
+      
+      // Only save state at the end of drawing, not during
+      if (isEnd) {
+        saveState();
+        isDrawingRef.current = false;
+      }
     }
 
     lastPointRef.current = { x: transformedX, y: smoothed.y };
@@ -399,12 +440,18 @@ const CanvasArea = () => {
   }, [mode, brushColor, isDrawingEnabled, brushSizeRef, saveCanvasSnapshot, restoreCanvasSnapshot, drawShapeLine, drawShapeRectangle, drawShapeSquare, drawShapeCircle, drawShapeTriangle, saveState, isKeyboardMode]);
 
   const resetDrawing = useCallback(() => {
+    // Save state when drawing ends
+    if (isDrawingRef.current) {
+      saveState();
+      isDrawingRef.current = false;
+    }
+    
     lastPointRef.current = null;
     pointBufferRef.current = [];
     shapeStartRef.current = null;
     isDrawingShapeRef.current = false;
     canvasSnapshotRef.current = null;
-  }, []);
+  }, [saveState]);
 
   // Sync refs with state for brush/eraser sizes
   useEffect(() => {
@@ -537,10 +584,11 @@ const CanvasArea = () => {
             }
             // Draw or erase based on gesture and mode
             else if (gesture === 'draw' && mode === 'draw' && isDrawingEnabled) {
-              handleDrawing(x, y);
+              handleDrawing(x, y, false, false);
             } else if (mode === 'erase' && isDrawingEnabled && (gesture === 'erase' || gesture === 'draw')) {
-              handleDrawing(x, y);
+              handleDrawing(x, y, false, false);
             } else {
+              handleDrawing(x, y, false, true); // Mark as end when gesture stops
               resetDrawing();
             }
           }
@@ -608,6 +656,7 @@ const CanvasArea = () => {
     img.src = restoreState.canvas;
     
     setTextObjects(restoreState.textObjects || []);
+    lastSavedStateRef.current = restoreState;
     setHistory({ undoStack: newUndoStack, redoStack: newRedoStack });
   };
 
@@ -626,6 +675,7 @@ const CanvasArea = () => {
     img.src = lastState.canvas;
     
     setTextObjects(lastState.textObjects || []);
+    lastSavedStateRef.current = lastState;
     setHistory({ undoStack: newUndoStack, redoStack: newRedoStack });
   };
 
@@ -638,6 +688,7 @@ const CanvasArea = () => {
       textObjects: []
     };
     setTextObjects([]);
+    lastSavedStateRef.current = newState;
     setHistory({ undoStack: [...history.undoStack, newState], redoStack: [] });
   };
 
@@ -774,6 +825,7 @@ const CanvasArea = () => {
         canvas: canvasRef.current.toDataURL(),
         textObjects: loadedTextObjects
       };
+      lastSavedStateRef.current = newState;
       setHistory({ undoStack: [newState], redoStack: [] });
       
       console.log('Gallery item loaded successfully with editable text');
@@ -870,6 +922,7 @@ const CanvasArea = () => {
         isActive={isKeyboardMode}
         onSetActive={() => setIsKeyboardMode(true)}
         onTextDragging={setTextDragging}
+        onSaveState={saveStateImmediate}
       />
     </div>
   );

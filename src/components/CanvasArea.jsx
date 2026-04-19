@@ -1,3 +1,4 @@
+// src/components/CanvasArea.jsx
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Toolbar from './Toolbar';
 import Gallery from './Gallery';
@@ -25,7 +26,7 @@ const CanvasArea = () => {
   const lastSavedStateRef = useRef(null);
   const [handDetected, setHandDetected] = useState(false);
   const [modelStatus, setModelStatus] = useState('Initializing...');
-  const [isDrawingEnabled, setIsDrawingEnabled] = useState(false);
+  const [isDrawingEnabled, setIsDrawingEnabled] = useState(true); // Changed to true by default
   const [currentGesture, setCurrentGesture] = useState('none');
   const [showGallery, setShowGallery] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -100,6 +101,8 @@ const CanvasArea = () => {
   const canvasSnapshotRef = useRef(null);
   const isDraggingTextRef = useRef(false); // Track if we're dragging text
   const isMouseDrawingRef = useRef(false); // Track if we're drawing with mouse
+  const lastGestureRef = useRef('none'); // Track last gesture for immediate response
+  const frameCountRef = useRef(0); // For performance optimization
 
   // Initialize canvas
   useEffect(() => {
@@ -163,7 +166,7 @@ const CanvasArea = () => {
 
   // Enhanced smoothing with weighted average to reduce jitter
   const smoothCoordinates = useCallback((x, y) => {
-    const bufferSize = 5; // Increased buffer for better smoothing
+    const bufferSize = 3; // Reduced buffer for faster response
     pointBufferRef.current.push({ x, y });
     
     if (pointBufferRef.current.length > bufferSize) {
@@ -325,7 +328,7 @@ const CanvasArea = () => {
     canvasSnapshotRef.current = canvasRef.current.toDataURL();
   }, []);
 
-  // Handle drawing with improved smoothing and immediate eraser activation
+  // Handle drawing with immediate response
   const handleDrawing = useCallback((x, y, isStart = false, isEnd = false) => {
     // Don't draw if we're dragging text or in keyboard mode
     if (!isDrawingEnabled || isDraggingTextRef.current || isKeyboardMode) return;
@@ -341,9 +344,8 @@ const CanvasArea = () => {
     const canvas = canvasRef.current;
     const transformedX = canvas.width - smoothed.x;
 
-    // For eraser, activate immediately on first detection
+    // Draw immediately for eraser
     if (isErasing && isStart) {
-      // Start erasing immediately when first detected
       drawLine(
         transformedX,
         smoothed.y,
@@ -380,9 +382,8 @@ const CanvasArea = () => {
     lastPointRef.current = { x: transformedX, y: smoothed.y };
   }, [mode, brushColor, isDrawingEnabled, drawLine, saveState, smoothCoordinates, isKeyboardMode]);
 
-  // Handle shape drawing with preview (Microsoft Paint style)
+  // Handle shape drawing with preview
   const handleShapeDrawing = useCallback((x, y, isDrawing) => {
-    // Don't draw shapes if we're dragging text or in keyboard mode
     if (!isDrawingEnabled || isDraggingTextRef.current || isKeyboardMode) return;
 
     const canvas = canvasRef.current;
@@ -390,26 +391,21 @@ const CanvasArea = () => {
     const color = brushColor;
     const size = brushSizeRef.current;
 
-    // Check if we're in a shape mode
     const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
     const isShapeMode = shapeModes.includes(mode);
 
     if (!isShapeMode) return;
 
     if (isDrawing) {
-      // Start drawing shape
       if (!isDrawingShapeRef.current) {
-        // Save canvas state for preview
         saveCanvasSnapshot();
         shapeStartRef.current = { x: transformedX, y };
         isDrawingShapeRef.current = true;
       } else {
-        // Update shape preview
         if (shapeStartRef.current && canvasSnapshotRef.current) {
           restoreCanvasSnapshot();
           const start = shapeStartRef.current;
           
-          // Draw preview based on mode
           setTimeout(() => {
             switch (mode) {
               case 'line':
@@ -432,12 +428,10 @@ const CanvasArea = () => {
         }
       }
     } else {
-      // Finish drawing shape
       if (isDrawingShapeRef.current && shapeStartRef.current) {
         restoreCanvasSnapshot();
         const start = shapeStartRef.current;
         
-        // Finalize shape
         switch (mode) {
           case 'line':
             drawShapeLine(start.x, start.y, transformedX, y, color, size);
@@ -465,7 +459,6 @@ const CanvasArea = () => {
   }, [mode, brushColor, isDrawingEnabled, brushSizeRef, saveCanvasSnapshot, restoreCanvasSnapshot, drawShapeLine, drawShapeRectangle, drawShapeSquare, drawShapeCircle, drawShapeTriangle, saveState, isKeyboardMode]);
 
   const resetDrawing = useCallback(() => {
-    // Save state when drawing ends
     if (isDrawingRef.current) {
       saveState();
       isDrawingRef.current = false;
@@ -479,142 +472,6 @@ const CanvasArea = () => {
     isMouseDrawingRef.current = false;
   }, [saveState]);
 
-  const handleMouseDown = useCallback((e) => {
-    if (!isDrawingEnabled || isKeyboardMode || isDraggingTextRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
-    const isShapeMode = shapeModes.includes(mode);
-    
-    if (isShapeMode) {
-      // Start shape drawing
-      saveCanvasSnapshot();
-      shapeStartRef.current = { x, y };
-      isDrawingShapeRef.current = true;
-      isMouseDrawingRef.current = true;
-    } else if (mode === 'draw' || mode === 'erase') {
-      // Start regular drawing
-      lastPointRef.current = { x, y };
-      isDrawingRef.current = true;
-      isMouseDrawingRef.current = true;
-    }
-  }, [mode, isDrawingEnabled, isKeyboardMode, saveCanvasSnapshot]);
-
-  const handleMouseMove = useCallback((e) => {
-    if (!isMouseDrawingRef.current || !isDrawingEnabled || isKeyboardMode || isDraggingTextRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
-    const isShapeMode = shapeModes.includes(mode);
-    
-    if (isShapeMode && isDrawingShapeRef.current && shapeStartRef.current) {
-      // Update shape preview
-      restoreCanvasSnapshot();
-      const start = shapeStartRef.current;
-      const color = brushColor;
-      const size = brushSizeRef.current;
-      
-      switch (mode) {
-        case 'line':
-          drawShapeLine(start.x, start.y, x, y, color, size);
-          break;
-        case 'rectangle':
-          drawShapeRectangle(start.x, start.y, x, y, color, size);
-          break;
-        case 'square':
-          drawShapeSquare(start.x, start.y, x, y, color, size);
-          break;
-        case 'circle':
-          drawShapeCircle(start.x, start.y, x, y, color, size);
-          break;
-        case 'triangle':
-          drawShapeTriangle(start.x, start.y, x, y, color, size);
-          break;
-      }
-    } else if ((mode === 'draw' || mode === 'erase') && lastPointRef.current) {
-      // Regular drawing
-      const isErasing = mode === 'erase';
-      const color = isErasing ? '#FFFFFF' : brushColor;
-      const size = isErasing ? eraserSizeRef.current : brushSizeRef.current;
-      
-      drawLine(
-        lastPointRef.current.x,
-        lastPointRef.current.y,
-        x,
-        y,
-        color,
-        size,
-        isErasing
-      );
-      
-      lastPointRef.current = { x, y };
-    }
-  }, [mode, isDrawingEnabled, isKeyboardMode, brushColor, restoreCanvasSnapshot, drawShapeLine, drawShapeRectangle, drawShapeSquare, drawShapeCircle, drawShapeTriangle, drawLine]);
-
-  const handleMouseUp = useCallback((e) => {
-    if (!isMouseDrawingRef.current || !isDrawingEnabled || isKeyboardMode || isDraggingTextRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
-    const isShapeMode = shapeModes.includes(mode);
-    
-    if (isShapeMode && isDrawingShapeRef.current && shapeStartRef.current) {
-      // Finalize shape
-      restoreCanvasSnapshot();
-      const start = shapeStartRef.current;
-      const color = brushColor;
-      const size = brushSizeRef.current;
-      
-      switch (mode) {
-        case 'line':
-          drawShapeLine(start.x, start.y, x, y, color, size);
-          break;
-        case 'rectangle':
-          drawShapeRectangle(start.x, start.y, x, y, color, size);
-          break;
-        case 'square':
-          drawShapeSquare(start.x, start.y, x, y, color, size);
-          break;
-        case 'circle':
-          drawShapeCircle(start.x, start.y, x, y, color, size);
-          break;
-        case 'triangle':
-          drawShapeTriangle(start.x, start.y, x, y, color, size);
-          break;
-      }
-      
-      saveState();
-      shapeStartRef.current = null;
-      isDrawingShapeRef.current = false;
-      canvasSnapshotRef.current = null;
-    } else if ((mode === 'draw' || mode === 'erase') && isDrawingRef.current) {
-      // End regular drawing
-      saveState();
-      isDrawingRef.current = false;
-    }
-    
-    lastPointRef.current = null;
-    isMouseDrawingRef.current = false;
-  }, [mode, isDrawingEnabled, isKeyboardMode, brushColor, restoreCanvasSnapshot, drawShapeLine, drawShapeRectangle, drawShapeSquare, drawShapeCircle, drawShapeTriangle, saveState]);
-
-  const handleMouseLeave = useCallback(() => {
-    if (isMouseDrawingRef.current) {
-      resetDrawing();
-    }
-  }, [resetDrawing]);
-
   // Sync refs with state for brush/eraser sizes
   useEffect(() => {
     brushSizeRef.current = brushSize;
@@ -624,20 +481,22 @@ const CanvasArea = () => {
     eraserSizeRef.current = eraserSize;
   }, [eraserSize]);
 
-  // Initialize MediaPipe Hands - separate from mode changes
+  // Initialize MediaPipe Hands with immediate activation
   useEffect(() => {
+    let mounted = true;
+    
     const initHandTracking = async () => {
       try {
         setModelStatus('Requesting camera...');
         
-        // Get camera stream with better error handling
         let stream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({ 
             video: { 
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              facingMode: 'user'
+              width: { ideal: 640, min: 320 }, // Lower resolution for faster processing
+              height: { ideal: 480, min: 240 },
+              facingMode: 'user',
+              frameRate: { ideal: 30 }
             } 
           });
         } catch (cameraError) {
@@ -646,14 +505,17 @@ const CanvasArea = () => {
           return;
         }
         
-        if (videoRef.current) {
+        if (videoRef.current && mounted) {
           videoRef.current.srcObject = stream;
+          videoRef.current.onloadeddata = () => {
+            console.log('Video loaded, ready for hand detection');
+            setModelStatus('Camera ready, loading hand detector...');
+          };
           await videoRef.current.play();
-          setModelStatus('Camera ready, loading hand detector...');
         }
 
-        // Wait for MediaPipe to be available with timeout
-        const waitForMediaPipe = (timeout = 10000) => {
+        // Wait for MediaPipe with shorter timeout
+        const waitForMediaPipe = (timeout = 5000) => {
           return new Promise((resolve, reject) => {
             if (window.Hands) {
               resolve();
@@ -665,11 +527,11 @@ const CanvasArea = () => {
                 clearInterval(checkInterval);
                 resolve();
               }
-            }, 100);
+            }, 50); // Check more frequently
             
             setTimeout(() => {
               clearInterval(checkInterval);
-              reject(new Error('MediaPipe Hands failed to load within timeout'));
+              reject(new Error('MediaPipe Hands failed to load'));
             }, timeout);
           });
         };
@@ -684,7 +546,7 @@ const CanvasArea = () => {
           return;
         }
 
-        // Initialize Hands with optimized parameters
+        // Initialize Hands with optimized parameters for speed
         const hands = new window.Hands({
           locateFile: (file) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
@@ -693,32 +555,108 @@ const CanvasArea = () => {
 
         hands.setOptions({
           maxNumHands: 1,
-          modelComplexity: 1,
-          minDetectionConfidence: 0.3, // Lowered for better detection
-          minTrackingConfidence: 0.3   // Lowered for better tracking
+          modelComplexity: 0, // Use lower complexity for faster detection
+          minDetectionConfidence: 0.2, // Lowered for faster initial detection
+          minTrackingConfidence: 0.2   // Lowered for faster tracking
         });
 
         handsRef.current = hands;
-        setModelStatus('Ready! Show your hand to draw');
-
-        // Process frames with error handling
-        const processFrame = async () => {
+        
+        // Set up immediate results handler
+        hands.onResults((results) => {
+          if (!mounted) return;
+          
+          // Skip if in keyboard mode or dragging text
+          if (isKeyboardMode || isDraggingTextRef.current) return;
+          
           try {
-            if (videoRef.current && videoRef.current.readyState >= 2 && handsRef.current) {
-              // Skip processing if in keyboard mode or dragging text
-              if (!isKeyboardMode && !isDraggingTextRef.current) {
-                await handsRef.current.send({ image: videoRef.current });
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+              setHandDetected(true);
+              const landmarks = results.multiHandLandmarks[0];
+              
+              // Detect gesture immediately
+              const gesture = detectGesture(landmarks);
+              setCurrentGesture(gesture);
+              
+              // Get index finger tip position
+              const indexTip = landmarks[8];
+              const canvas = canvasRef.current;
+              
+              if (canvas && indexTip) {
+                const x = indexTip.x * canvas.width;
+                const y = indexTip.y * canvas.height;
+                
+                const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
+                const isShapeMode = shapeModes.includes(mode);
+                
+                // Handle drawing immediately based on gesture
+                if (isShapeMode && isDrawingEnabled) {
+                  handleShapeDrawing(x, y, gesture === 'draw');
+                }
+                // Draw or erase based on gesture - IMMEDIATE RESPONSE
+                else if (gesture === 'draw' && mode === 'draw' && isDrawingEnabled) {
+                  // Check if this is a new drawing stroke
+                  const isStart = lastGestureRef.current !== 'draw';
+                  handleDrawing(x, y, isStart, false);
+                  lastGestureRef.current = 'draw';
+                } 
+                else if (mode === 'erase' && isDrawingEnabled && gesture === 'erase') {
+                  // For eraser, start immediately
+                  const isStart = lastGestureRef.current !== 'erase';
+                  handleDrawing(x, y, isStart, false);
+                  lastGestureRef.current = 'erase';
+                } 
+                else {
+                  // Gesture stopped or changed - end drawing
+                  if (lastGestureRef.current !== 'none') {
+                    handleDrawing(x, y, false, true);
+                    resetDrawing();
+                    lastGestureRef.current = 'none';
+                  }
+                }
+              }
+            } else {
+              // No hand detected - reset
+              if (handDetected) {
+                setHandDetected(false);
+                setCurrentGesture('none');
+                if (lastGestureRef.current !== 'none') {
+                  resetDrawing();
+                  lastGestureRef.current = 'none';
+                }
               }
             }
-            animationRef.current = requestAnimationFrame(processFrame);
-          } catch (frameError) {
-            console.error('Frame processing error:', frameError);
-            // Continue processing even if individual frames fail
-            animationRef.current = requestAnimationFrame(processFrame);
+          } catch (error) {
+            console.error('Error processing hand results:', error);
           }
+        });
+
+        setModelStatus('Ready! Show your hand to draw');
+        
+        // Start processing frames with throttling for performance
+        let lastProcessTime = 0;
+        const processFrame = async (timestamp) => {
+          if (!mounted) return;
+          
+          // Throttle frame processing to 30fps for better performance
+          if (timestamp - lastProcessTime >= 33) {
+            lastProcessTime = timestamp;
+            
+            if (videoRef.current && videoRef.current.readyState >= 2 && handsRef.current) {
+              if (!isKeyboardMode && !isDraggingTextRef.current) {
+                try {
+                  await handsRef.current.send({ image: videoRef.current });
+                } catch (frameError) {
+                  // Silent fail for individual frames
+                }
+              }
+            }
+          }
+          
+          animationRef.current = requestAnimationFrame(processFrame);
         };
 
-        processFrame();
+        animationRef.current = requestAnimationFrame(processFrame);
         
       } catch (error) {
         console.error('Hand tracking initialization error:', error);
@@ -729,6 +667,7 @@ const CanvasArea = () => {
     initHandTracking();
 
     return () => {
+      mounted = false;
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
@@ -750,67 +689,7 @@ const CanvasArea = () => {
         });
       }
     };
-  }, [isKeyboardMode]); // Only re-initialize when keyboard mode changes
-
-  // Update hands results handler when mode or drawing state changes
-  useEffect(() => {
-    if (handsRef.current) {
-      handsRef.current.onResults((results) => {
-        // Skip hand tracking if in keyboard mode or dragging text
-        if (isKeyboardMode || isDraggingTextRef.current) {
-          return;
-        }
-        
-        try {
-          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-            setHandDetected(true);
-            const landmarks = results.multiHandLandmarks[0];
-            const gesture = detectGesture(landmarks);
-            setCurrentGesture(gesture);
-            
-            // Get index finger tip position
-            const indexTip = landmarks[8];
-            const canvas = canvasRef.current;
-            
-            if (canvas && indexTip) {
-              // Don't transform here, transform in handleDrawing
-              const x = indexTip.x * canvas.width;
-              const y = indexTip.y * canvas.height;
-              
-              // Check if we're in a shape mode
-              const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
-              const isShapeMode = shapeModes.includes(mode);
-              
-              // Handle shape drawing
-              if (isShapeMode && isDrawingEnabled) {
-                handleShapeDrawing(x, y, gesture === 'draw');
-              }
-              // Draw or erase based on gesture and mode
-              else if (gesture === 'draw' && mode === 'draw' && isDrawingEnabled) {
-                handleDrawing(x, y, false, false);
-              } else if (mode === 'erase' && isDrawingEnabled && (gesture === 'erase' || gesture === 'draw')) {
-                // For eraser, start immediately on first detection
-                const isStart = !isDrawingRef.current;
-                handleDrawing(x, y, isStart, false);
-              } else {
-                handleDrawing(x, y, false, true); // Mark as end when gesture stops
-                resetDrawing();
-              }
-            }
-          } else {
-            setHandDetected(false);
-            setCurrentGesture('none');
-            resetDrawing();
-          }
-        } catch (error) {
-          console.error('Error processing hand results:', error);
-          setHandDetected(false);
-          setCurrentGesture('none');
-          resetDrawing();
-        }
-      });
-    }
-  }, [mode, isDrawingEnabled, handleDrawing, handleShapeDrawing, resetDrawing, isKeyboardMode]);
+  }, [isKeyboardMode, mode, isDrawingEnabled, handleDrawing, handleShapeDrawing, resetDrawing, handDetected]);
 
   // Detect gesture from landmarks with improved sensitivity
   const detectGesture = (landmarks) => {
@@ -819,33 +698,23 @@ const CanvasArea = () => {
         return 'none';
       }
       
-      // Get finger states with more lenient thresholds
+      // Get finger states with lenient thresholds for faster response
       const fingers = {
-        thumb: landmarks[4].y < landmarks[2].y + 0.05, // More lenient thumb detection
-        index: landmarks[8].y < landmarks[6].y + 0.05,  // More lenient index detection
-        middle: landmarks[12].y < landmarks[10].y + 0.05,
-        ring: landmarks[16].y < landmarks[14].y + 0.05,
-        pinky: landmarks[20].y < landmarks[18].y + 0.05
+        thumb: landmarks[4].y < landmarks[2].y + 0.08,
+        index: landmarks[8].y < landmarks[6].y + 0.08,
+        middle: landmarks[12].y < landmarks[10].y + 0.08,
+        ring: landmarks[16].y < landmarks[14].y + 0.08,
+        pinky: landmarks[20].y < landmarks[18].y + 0.08
       };
       
-      // Index finger only (with some tolerance for other fingers)
+      // Index finger only - DRAW
       if (fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
         return 'draw';
       }
       
-      // Peace sign (index + middle) - stop drawing
-      if (fingers.index && fingers.middle && !fingers.ring && !fingers.pinky) {
-        return 'stop';
-      }
-      
-      // Thumb up (more lenient) - erase
+      // Thumb up - ERASE
       if (fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
         return 'erase';
-      }
-      
-      // Open palm (all fingers) - do nothing (high five)
-      if (fingers.thumb && fingers.index && fingers.middle && fingers.ring && fingers.pinky) {
-        return 'none';
       }
       
       return 'none';
@@ -916,13 +785,10 @@ const CanvasArea = () => {
   const toggleKeyboardMode = () => {
     const newKeyboardMode = !isKeyboardMode;
     setIsKeyboardMode(newKeyboardMode);
-    // Reset text dragging when toggling modes
     isDraggingTextRef.current = false;
-    // When text mode is on, turn drawing off; when text mode is off, turn drawing on
     setIsDrawingEnabled(!newKeyboardMode);
   };
 
-  // Set text dragging state from KeyboardText component
   const setTextDragging = useCallback((isDragging) => {
     isDraggingTextRef.current = isDragging;
   }, []);
@@ -931,16 +797,13 @@ const CanvasArea = () => {
     try {
       const canvas = canvasRef.current;
       
-      // Create a temporary canvas to composite text objects for thumbnail only
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = canvas.width;
       tempCanvas.height = canvas.height;
       const ctx = tempCanvas.getContext('2d');
       
-      // Draw the original canvas
       ctx.drawImage(canvas, 0, 0);
       
-      // Draw text objects on top for thumbnail preview
       if (textObjects && textObjects.length > 0) {
         textObjects.forEach((obj) => {
           ctx.fillStyle = obj.color || '#000000';
@@ -948,7 +811,6 @@ const CanvasArea = () => {
           ctx.textBaseline = 'top';
           ctx.textAlign = 'left';
           
-          // Add shadow for better visibility in thumbnail
           ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
           ctx.shadowBlur = 2;
           ctx.shadowOffsetX = 1;
@@ -964,12 +826,10 @@ const CanvasArea = () => {
       }
       
       const thumbnail = tempCanvas.toDataURL('image/png', 0.1);
-      
-      // Save BOTH the canvas image AND text objects separately
       const canvasData = canvas.toDataURL();
       const saveData = {
         canvasImage: canvasData,
-        textObjects: textObjects // Save text objects separately
+        textObjects: textObjects
       };
       
       console.log('Saving with text objects:', textObjects.length);
@@ -1008,16 +868,13 @@ const CanvasArea = () => {
   const handleLoadFromGallery = (savedData) => {
     console.log('Loading from gallery:', savedData);
     
-    // Check if savedData is a string (old format) or object (new format with text objects)
     let canvasImageData;
     let loadedTextObjects = [];
     
     if (typeof savedData === 'string') {
-      // Old format - just canvas data URL
       canvasImageData = savedData;
       loadedTextObjects = [];
     } else if (typeof savedData === 'object') {
-      // New format - contains canvasImage and textObjects
       canvasImageData = savedData.canvasImage;
       loadedTextObjects = savedData.textObjects || [];
     } else {
@@ -1032,11 +889,9 @@ const CanvasArea = () => {
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.drawImage(img, 0, 0);
       
-      // Set the text objects
       setTextObjects(loadedTextObjects);
       console.log('Loaded text objects:', loadedTextObjects.length);
       
-      // Save state with both canvas and text objects
       const newState = {
         canvas: canvasRef.current.toDataURL(),
         textObjects: loadedTextObjects
@@ -1103,10 +958,6 @@ const CanvasArea = () => {
         <canvas 
           ref={canvasRef} 
           className="drawing-canvas"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
         />
         
         {/* Camera feed - visible and mirrored for natural POV */}

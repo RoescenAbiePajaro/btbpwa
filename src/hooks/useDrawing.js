@@ -1,3 +1,4 @@
+// src/hooks/useDrawing.js
 import { useCallback, useRef } from 'react';
 
 const useDrawing = (canvasRef, mode, brushColor, brushSize, eraserSize, saveState) => {

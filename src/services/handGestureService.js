@@ -1,3 +1,5 @@
+// src/services/handGestureService.js
+
 class HandGestureService {
   constructor() {
     this.hands = null;

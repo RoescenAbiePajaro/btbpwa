@@ -100,7 +100,7 @@ const Gallery = ({ onClose, onLoad }) => {
 
   const exportAsImage = async (work) => {
     try {
-      // Use canvasData (full artwork) instead of thumbnail
+      // Composite with template for export
       const compositedImage = await compositeWithTemplate(work.canvasData);
       const response = await fetch(compositedImage);
       const blob = await response.blob();
@@ -119,7 +119,7 @@ const Gallery = ({ onClose, onLoad }) => {
     return new Promise(async (resolve, reject) => {
       try {
         const pdf = new jsPDF();
-        // Use canvasData (full artwork) composited with template
+        // Composite with template for export
         const compositedImage = await compositeWithTemplate(work.canvasData);
         const response = await fetch(compositedImage);
         const blob = await response.blob();
@@ -169,7 +169,7 @@ const Gallery = ({ onClose, onLoad }) => {
           color: '363636'
         });
         
-        // Use canvasData (full artwork) composited with template
+        // Composite with template for export
         const compositedImage = await compositeWithTemplate(work.canvasData);
         const imageData = await fetch(compositedImage).then(res => res.arrayBuffer());
         const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
@@ -230,7 +230,7 @@ const Gallery = ({ onClose, onLoad }) => {
           pdf.text(work.title, pdf.internal.pageSize.width / 2, currentY, { align: 'center' });
           currentY += 20;
           
-          // Use canvasData (full artwork) composited with template
+          // Composite with template for export
           const compositedImage = await compositeWithTemplate(work.canvasData);
           const response = await fetch(compositedImage);
           const blob = await response.blob();
@@ -288,7 +288,7 @@ const Gallery = ({ onClose, onLoad }) => {
             color: '363636'
           });
           
-          // Use canvasData (full artwork) composited with template
+          // Composite with template for export
           const compositedImage = await compositeWithTemplate(work.canvasData);
           const imageData = await fetch(compositedImage).then(res => res.arrayBuffer());
           const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
@@ -318,7 +318,7 @@ const Gallery = ({ onClose, onLoad }) => {
         const imgFolder = zip.folder("gallery-images");
         
         for (const work of selectedWorks) {
-          // Use canvasData (full artwork) composited with template
+          // Composite with template for export
           const compositedImage = await compositeWithTemplate(work.canvasData);
           const response = await fetch(compositedImage);
           const blob = await response.blob();

@@ -604,8 +604,48 @@ const CanvasArea = () => {
   const handleSave = async () => {
     try {
       const canvas = canvasRef.current;
-      const thumbnail = canvas.toDataURL('image/png', 0.1);
-      const canvasData = canvas.toDataURL();
+      
+      // Create a temporary canvas to composite text objects
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const ctx = tempCanvas.getContext('2d');
+      
+      // Draw the original canvas
+      ctx.drawImage(canvas, 0, 0);
+      
+      // Draw text objects on top
+      console.log('Saving canvas with text objects:', textObjects);
+      if (textObjects && textObjects.length > 0) {
+        textObjects.forEach((obj, index) => {
+          console.log(`Drawing text ${index}:`, obj);
+          // Set text properties with better defaults
+          ctx.fillStyle = obj.color || '#000000'; // Default to black instead of white
+          ctx.font = `${obj.fontSize || 24}px ${obj.fontFamily || 'Arial'}`;
+          ctx.textBaseline = 'top';
+          ctx.textAlign = 'left';
+          
+          // Add shadow for better visibility
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+          ctx.shadowBlur = 2;
+          ctx.shadowOffsetX = 1;
+          ctx.shadowOffsetY = 1;
+          
+          ctx.fillText(obj.text, obj.position.x, obj.position.y);
+          
+          // Reset shadow
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+        });
+      } else {
+        console.log('No text objects to save');
+      }
+      
+      const thumbnail = tempCanvas.toDataURL('image/png', 0.1);
+      const canvasData = tempCanvas.toDataURL();
+      console.log('Canvas data length:', canvasData.length);
       await saveWorkToGallery(thumbnail, canvasData);
       alert('Saved to gallery successfully!');
     } catch (error) {
@@ -639,17 +679,23 @@ const CanvasArea = () => {
   };
 
   const handleLoadFromGallery = (canvasData) => {
+    console.log('Loading from gallery, canvas data length:', canvasData.length);
     const img = new Image();
     img.onload = () => {
+      console.log('Image loaded, drawing to canvas');
       const ctx = canvasRef.current.getContext('2d');
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.drawImage(img, 0, 0);
       const newState = {
         canvas: canvasRef.current.toDataURL(),
-        textObjects: []
+        textObjects: [] // Text should already be composited in the image
       };
-      setTextObjects([]);
+      setTextObjects([]); // Clear text objects since they're baked into the canvas
       setHistory({ undoStack: [newState], redoStack: [] });
+      console.log('Gallery item loaded successfully');
+    };
+    img.onerror = () => {
+      console.error('Failed to load image from gallery');
     };
     img.src = canvasData;
   };

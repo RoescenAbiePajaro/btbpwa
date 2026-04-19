@@ -100,6 +100,23 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
     e.stopPropagation();
     
     const obj = textObjects[index];
+    
+    // If currently editing, switch to editing the clicked text
+    if (isEditingInput || isEditingExisting) {
+      setInputText(obj.text);
+      setInputPos(obj.position);
+      setIsEditingInput(true);
+      setIsEditingExisting(true);
+      setSelectedIndex(index);
+      
+      // Select this object
+      setTextObjects(prev => prev.map((o, i) => ({
+        ...o,
+        selected: i === index
+      })));
+      return;
+    }
+    
     const startX = e.clientX;
     const startY = e.clientY;
     
@@ -116,7 +133,7 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
       ...o,
       selected: i === index
     })));
-  }, [isActive, textObjects, setTextObjects]);
+  }, [isActive, textObjects, setTextObjects, isEditingInput, isEditingExisting]);
 
   // Handle drag move
   const handleDragMove = useCallback((e) => {

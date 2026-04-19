@@ -86,7 +86,7 @@ export const exportAsPPTX = async (canvas, textObjects) => {
   // Add title slide with text content if available
   if (textContent.trim()) {
     const titleSlide = pptx.addSlide();
-    titleSlide.addText('Beyond The Brush', { 
+    titleSlide.addText('Beyond The Brush', {
       x: 1, y: 0.5, w: 8, h: 1, 
       fontSize: 36, bold: true, align: 'center' 
     });

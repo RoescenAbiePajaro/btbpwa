@@ -26,3 +26,13 @@ export const getUserGallery = async () => {
   const res = await api.get('/gallery');
   return res.data;
 };
+
+export const deleteWorkFromGallery = async (workId) => {
+  const res = await api.delete(`/gallery/${workId}`);
+  return res.data;
+};
+
+export const deleteMultipleWorksFromGallery = async (workIds) => {
+  const res = await api.delete('/gallery', { data: { ids: workIds } });
+  return res.data;
+};

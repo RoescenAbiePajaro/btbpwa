@@ -1,6 +1,6 @@
 // src/components/Gallery.jsx
 import React, { useEffect, useState } from 'react';
-import { getUserGallery, loadWorkFromGallery } from '../services/api';
+import { getUserGallery, loadWorkFromGallery, deleteWorkFromGallery, deleteMultipleWorksFromGallery } from '../services/api';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import PptxGenJS from 'pptxgenjs';
@@ -380,6 +380,46 @@ const Gallery = ({ onClose, onLoad }) => {
     }
   };
 
+  const handleDeleteSingle = async (workId) => {
+    if (!window.confirm('Are you sure you want to delete this work?')) {
+      return;
+    }
+    
+    try {
+      await deleteWorkFromGallery(workId);
+      // Refresh the gallery
+      const data = await getUserGallery();
+      setWorks(data);
+      // Clear selection if the deleted item was selected
+      const newSelected = new Set(selectedItems);
+      newSelected.delete(workId);
+      setSelectedItems(newSelected);
+    } catch (error) {
+      console.error('Error deleting work:', error);
+      alert('Failed to delete work. Please try again.');
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedItems.size === 0) return;
+    
+    if (!window.confirm(`Are you sure you want to delete ${selectedItems.size} selected work(s)?`)) {
+      return;
+    }
+    
+    try {
+      await deleteMultipleWorksFromGallery(Array.from(selectedItems));
+      // Refresh the gallery
+      const data = await getUserGallery();
+      setWorks(data);
+      // Clear selections
+      setSelectedItems(new Set());
+    } catch (error) {
+      console.error('Error deleting works:', error);
+      alert('Failed to delete works. Please try again.');
+    }
+  };
+
   return (
     <div className="gallery-container">
       <div className="gallery-header">
@@ -397,12 +437,20 @@ const Gallery = ({ onClose, onLoad }) => {
                 <span>Select All</span>
               </label>
               {selectedItems.size > 0 && (
-                <button
-                  onClick={() => setShowExportModal(true)}
-                  className="export-selected-btn"
-                >
-                  Export Selected ({selectedItems.size})
-                </button>
+                <>
+                  <button
+                    onClick={() => setShowExportModal(true)}
+                    className="export-selected-btn"
+                  >
+                    Export Selected ({selectedItems.size})
+                  </button>
+                  <button
+                    onClick={handleDeleteSelected}
+                    className="delete-selected-btn"
+                  >
+                    Delete Selected ({selectedItems.size})
+                  </button>
+                </>
               )}
             </>
           )}
@@ -451,6 +499,13 @@ const Gallery = ({ onClose, onLoad }) => {
                   title="Export as PowerPoint"
                 >
                   PPTX
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleDeleteSingle(work._id); }}
+                  className="gallery-action-btn gallery-action-btn--delete"
+                  title="Delete work"
+                >
+                  🗑️
                 </button>
               </div>
             </div>

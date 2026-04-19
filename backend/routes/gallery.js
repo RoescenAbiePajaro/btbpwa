@@ -43,4 +43,30 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+// Delete specific work
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const work = await SavedWork.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+    if (!work) return res.status(404).json({ error: 'Not found' });
+    res.json({ message: 'Work deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete multiple works
+router.delete('/', auth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid IDs provided' });
+    }
+    
+    const result = await SavedWork.deleteMany({ _id: { $in: ids }, userId: req.userId });
+    res.json({ message: `${result.deletedCount} works deleted successfully` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

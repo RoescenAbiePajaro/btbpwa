@@ -27,6 +27,8 @@ const CanvasArea = () => {
   const [showGallery, setShowGallery] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [keyboardText, setKeyboardText] = useState({ text: '', pos: { x: 200, y: 200 } });
+  const [textObjects, setTextObjects] = useState([]);
+  const [isKeyboardMode, setIsKeyboardMode] = useState(false);
   const { logout } = useAuth();
 
   const lastPointRef = useRef(null);
@@ -48,7 +50,10 @@ const CanvasArea = () => {
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const initialState = canvas.toDataURL();
+      const initialState = {
+        canvas: canvas.toDataURL(),
+        textObjects: []
+      };
       setHistory({ undoStack: [initialState], redoStack: [] });
       console.log('Canvas initialized');
     }
@@ -56,12 +61,15 @@ const CanvasArea = () => {
 
   // Save state function
   const saveState = useCallback(() => {
-    const newState = canvasRef.current.toDataURL();
+    const newState = {
+      canvas: canvasRef.current.toDataURL(),
+      textObjects: [...textObjects]
+    };
     setHistory(prev => ({
       undoStack: [...prev.undoStack, newState],
       redoStack: []
     }));
-  }, []);
+  }, [textObjects]);
 
   // Smooth coordinates using moving average to reduce jitter
   const smoothCoordinates = useCallback((x, y) => {
@@ -476,31 +484,40 @@ const CanvasArea = () => {
 
   // Detect gesture from landmarks
   const detectGesture = (landmarks) => {
-    // Get finger states
-    const fingers = {
-      thumb: landmarks[4].y < landmarks[2].y,
-      index: landmarks[8].y < landmarks[6].y,
-      middle: landmarks[12].y < landmarks[10].y,
-      ring: landmarks[16].y < landmarks[14].y,
-      pinky: landmarks[20].y < landmarks[18].y
-    };
-    
-    // Index finger only
-    if (fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
-      return 'draw';
+    try {
+      if (!landmarks || landmarks.length < 21) {
+        return 'none';
+      }
+      
+      // Get finger states
+      const fingers = {
+        thumb: landmarks[4].y < landmarks[2].y,
+        index: landmarks[8].y < landmarks[6].y,
+        middle: landmarks[12].y < landmarks[10].y,
+        ring: landmarks[16].y < landmarks[14].y,
+        pinky: landmarks[20].y < landmarks[18].y
+      };
+      
+      // Index finger only
+      if (fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
+        return 'draw';
+      }
+      
+      // Peace sign (index + middle)
+      if (fingers.index && fingers.middle && !fingers.ring && !fingers.pinky) {
+        return 'stop';
+      }
+      
+      // Thumb up
+      if (fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
+        return 'erase';
+      }
+      
+      return 'none';
+    } catch (error) {
+      console.error('Error in detectGesture:', error);
+      return 'none';
     }
-    
-    // Peace sign (index + middle)
-    if (fingers.index && fingers.middle && !fingers.ring && !fingers.pinky) {
-      return 'stop';
-    }
-    
-    // Thumb up
-    if (fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
-      return 'erase';
-    }
-    
-    return 'none';
   };
 
   // Undo/Redo/Clear functions
@@ -517,8 +534,9 @@ const CanvasArea = () => {
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.drawImage(img, 0, 0);
     };
-    img.src = restoreState;
+    img.src = restoreState.canvas;
     
+    setTextObjects(restoreState.textObjects || []);
     setHistory({ undoStack: newUndoStack, redoStack: newRedoStack });
   };
 
@@ -534,8 +552,9 @@ const CanvasArea = () => {
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.drawImage(img, 0, 0);
     };
-    img.src = lastState;
+    img.src = lastState.canvas;
     
+    setTextObjects(lastState.textObjects || []);
     setHistory({ undoStack: newUndoStack, redoStack: newRedoStack });
   };
 
@@ -543,13 +562,21 @@ const CanvasArea = () => {
     const ctx = canvasRef.current.getContext('2d');
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-    const newState = canvasRef.current.toDataURL();
+    const newState = {
+      canvas: canvasRef.current.toDataURL(),
+      textObjects: []
+    };
+    setTextObjects([]);
     setHistory({ undoStack: [...history.undoStack, newState], redoStack: [] });
   };
 
   const toggleDrawing = () => {
     setIsDrawingEnabled(!isDrawingEnabled);
     resetDrawing();
+  };
+
+  const toggleKeyboardMode = () => {
+    setIsKeyboardMode(!isKeyboardMode);
   };
 
   const handleSave = async () => {
@@ -569,11 +596,11 @@ const CanvasArea = () => {
     try {
       const canvas = canvasRef.current;
       if (format === 'image') {
-        await exportAsImage(canvas);
+        await exportAsImage(canvas, textObjects);
       } else if (format === 'pdf') {
-        await exportAsPDF(canvas);
+        await exportAsPDF(canvas, textObjects);
       } else if (format === 'pptx') {
-        await exportAsPPTX(canvas);
+        await exportAsPPTX(canvas, textObjects);
       }
     } catch (error) {
       console.error('Export error:', error);
@@ -595,7 +622,11 @@ const CanvasArea = () => {
       const ctx = canvasRef.current.getContext('2d');
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.drawImage(img, 0, 0);
-      const newState = canvasRef.current.toDataURL();
+      const newState = {
+        canvas: canvasRef.current.toDataURL(),
+        textObjects: []
+      };
+      setTextObjects([]);
       setHistory({ undoStack: [newState], redoStack: [] });
     };
     img.src = canvasData;
@@ -643,6 +674,8 @@ const CanvasArea = () => {
         onLogout={logout}
         onToggleDrawing={toggleDrawing}
         isDrawingEnabled={isDrawingEnabled}
+        isKeyboardMode={isKeyboardMode}
+        onToggleKeyboardMode={toggleKeyboardMode}
       />
 
       <div className="canvas-main">
@@ -678,7 +711,12 @@ const CanvasArea = () => {
         <GuideModal onClose={() => setShowGuide(false)} />
       )}
 
-      <KeyboardText setKeyboardText={setKeyboardText} />
+      <KeyboardText 
+        textObjects={textObjects}
+        setTextObjects={setTextObjects}
+        isActive={isKeyboardMode}
+        onSetActive={() => setIsKeyboardMode(true)}
+      />
     </div>
   );
 };

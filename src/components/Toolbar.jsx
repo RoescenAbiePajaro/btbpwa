@@ -3,7 +3,8 @@ import React from 'react';
 const Toolbar = ({ 
   mode, setMode, brushColor, setBrushColor, brushSize, setBrushSize, 
   eraserSize, setEraserSize, onUndo, onRedo, onClear, onSave, 
-  onGuide, onGallery, onLogout, onToggleDrawing, isDrawingEnabled 
+  onGuide, onGallery, onLogout, onToggleDrawing, isDrawingEnabled,
+  isKeyboardMode, onToggleKeyboardMode 
 }) => {
   const colors = [
     '#000000', '#FF0000', '#FF69B4', '#FFD700', '#0000FF', '#00FF00', '#800080', '#FFA500'
@@ -45,6 +46,9 @@ const Toolbar = ({
       <div className="toolbar-section">
         <button onClick={onToggleDrawing} className={`tool-btn ${isDrawingEnabled ? 'active' : 'inactive'}`}>
           {isDrawingEnabled ? '✋ Drawing ON' : '🔒 Drawing OFF'}
+        </button>
+        <button onClick={onToggleKeyboardMode} className={`tool-btn ${isKeyboardMode ? 'active' : 'inactive'}`}>
+          {isKeyboardMode ? '⌨️ Text ON' : '📝 Text OFF'}
         </button>
       </div>
 

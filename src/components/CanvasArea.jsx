@@ -588,9 +588,12 @@ const CanvasArea = () => {
   };
 
   const toggleKeyboardMode = () => {
-    setIsKeyboardMode(!isKeyboardMode);
+    const newKeyboardMode = !isKeyboardMode;
+    setIsKeyboardMode(newKeyboardMode);
     // Reset text dragging when toggling modes
     isDraggingTextRef.current = false;
+    // When text mode is on, turn drawing off; when text mode is off, turn drawing on
+    setIsDrawingEnabled(!newKeyboardMode);
   };
 
   // Set text dragging state from KeyboardText component

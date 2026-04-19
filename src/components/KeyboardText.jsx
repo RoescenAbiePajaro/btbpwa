@@ -138,18 +138,11 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTe
       e.preventDefault();
       e.stopPropagation();
       
-      // Start editing the dragged text
-      const obj = textObjects[draggingIndex];
-      setInputText(obj.text);
-      setInputPos(obj.position);
-      setIsEditingInput(true);
-      setIsEditingExisting(true);
-      setSelectedIndex(draggingIndex);
-      
+      // Just end dragging, don't start editing automatically
       setDraggingIndex(-1);
       dragStartPosRef.current = null;
     }
-  }, [draggingIndex, textObjects]);
+  }, [draggingIndex]);
 
   // Done editing function
   const doneEdit = useCallback(() => {

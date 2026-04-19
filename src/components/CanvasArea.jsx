@@ -41,6 +41,7 @@ const CanvasArea = () => {
   const shapeStartRef = useRef(null);
   const isDrawingShapeRef = useRef(false);
   const canvasSnapshotRef = useRef(null);
+  const isDraggingTextRef = useRef(false); // Track if we're dragging text
 
   // Initialize canvas
   useEffect(() => {
@@ -229,7 +230,8 @@ const CanvasArea = () => {
 
   // Handle drawing with coordinate transformation for mirror
   const handleDrawing = useCallback((x, y) => {
-    if (!isDrawingEnabled) return;
+    // Don't draw if we're dragging text or in keyboard mode
+    if (!isDrawingEnabled || isDraggingTextRef.current || isKeyboardMode) return;
 
     const isErasing = mode === 'erase';
     const color = isErasing ? '#FFFFFF' : brushColor;
@@ -256,11 +258,12 @@ const CanvasArea = () => {
     }
 
     lastPointRef.current = { x: transformedX, y: smoothed.y };
-  }, [mode, brushColor, isDrawingEnabled, drawLine, saveState, smoothCoordinates]);
+  }, [mode, brushColor, isDrawingEnabled, drawLine, saveState, smoothCoordinates, isKeyboardMode]);
 
   // Handle shape drawing with preview (Microsoft Paint style)
   const handleShapeDrawing = useCallback((x, y, isDrawing) => {
-    if (!isDrawingEnabled) return;
+    // Don't draw shapes if we're dragging text or in keyboard mode
+    if (!isDrawingEnabled || isDraggingTextRef.current || isKeyboardMode) return;
 
     const canvas = canvasRef.current;
     const transformedX = canvas.width - x;
@@ -339,7 +342,7 @@ const CanvasArea = () => {
         canvasSnapshotRef.current = null;
       }
     }
-  }, [mode, brushColor, isDrawingEnabled, brushSizeRef, saveCanvasSnapshot, restoreCanvasSnapshot, drawShapeLine, drawShapeRectangle, drawShapeSquare, drawShapeCircle, drawShapeTriangle, saveState]);
+  }, [mode, brushColor, isDrawingEnabled, brushSizeRef, saveCanvasSnapshot, restoreCanvasSnapshot, drawShapeLine, drawShapeRectangle, drawShapeSquare, drawShapeCircle, drawShapeTriangle, saveState, isKeyboardMode]);
 
   const resetDrawing = useCallback(() => {
     lastPointRef.current = null;
@@ -409,6 +412,11 @@ const CanvasArea = () => {
         });
 
         hands.onResults((results) => {
+          // Skip hand tracking if in keyboard mode or dragging text
+          if (isKeyboardMode || isDraggingTextRef.current) {
+            return;
+          }
+          
           if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             setHandDetected(true);
             const landmarks = results.multiHandLandmarks[0];
@@ -454,7 +462,10 @@ const CanvasArea = () => {
         // Process frames
         const processFrame = async () => {
           if (videoRef.current && videoRef.current.readyState >= 2 && handsRef.current) {
-            await handsRef.current.send({ image: videoRef.current });
+            // Skip processing if in keyboard mode or dragging text
+            if (!isKeyboardMode && !isDraggingTextRef.current) {
+              await handsRef.current.send({ image: videoRef.current });
+            }
           }
           animationRef.current = requestAnimationFrame(processFrame);
         };
@@ -481,7 +492,7 @@ const CanvasArea = () => {
         tracks.forEach(track => track.stop());
       }
     };
-  }, [mode, isDrawingEnabled, handleDrawing, handleShapeDrawing, resetDrawing]);
+  }, [mode, isDrawingEnabled, handleDrawing, handleShapeDrawing, resetDrawing, isKeyboardMode]);
 
   // Detect gesture from landmarks
   const detectGesture = (landmarks) => {
@@ -578,7 +589,14 @@ const CanvasArea = () => {
 
   const toggleKeyboardMode = () => {
     setIsKeyboardMode(!isKeyboardMode);
+    // Reset text dragging when toggling modes
+    isDraggingTextRef.current = false;
   };
+
+  // Set text dragging state from KeyboardText component
+  const setTextDragging = useCallback((isDragging) => {
+    isDraggingTextRef.current = isDragging;
+  }, []);
 
   const handleSave = async () => {
     try {
@@ -654,6 +672,7 @@ const CanvasArea = () => {
         <div> Gesture: {currentGesture}</div>
         <div> Mode: {mode}</div>
         <div>{isDrawingEnabled ? ' Drawing ON' : ' Drawing OFF'}</div>
+        <div>{isKeyboardMode ? ' ✏️ Keyboard Mode ACTIVE' : ' ⌨️ Keyboard Mode OFF'}</div>
       </div>
 
       <Toolbar
@@ -683,7 +702,7 @@ const CanvasArea = () => {
         <canvas ref={canvasRef} className="drawing-canvas" />
         
         {/* Camera feed - visible and mirrored for natural POV */}
-        <div className="camera-container">
+        <div className="camera-container" style={{ opacity: isKeyboardMode ? 0.5 : 1 }}>
           <video
             ref={videoRef}
             className="hand-camera"
@@ -695,7 +714,7 @@ const CanvasArea = () => {
             style={{ transform: 'scaleX(-1)' }} // Mirror for natural POV
           />
           <div className={`camera-overlay ${handDetected ? 'hand-detected' : ''}`}>
-            <span>{handDetected ? '✋ Hand Detected' : '✋ Show Your Hand'}</span>
+            <span>{isKeyboardMode ? '⌨️ Keyboard Mode - Hand tracking paused' : (handDetected ? '✋ Hand Detected' : '✋ Show Your Hand')}</span>
           </div>
         </div>
       </div>
@@ -717,6 +736,7 @@ const CanvasArea = () => {
         setTextObjects={setTextObjects}
         isActive={isKeyboardMode}
         onSetActive={() => setIsKeyboardMode(true)}
+        onTextDragging={setTextDragging}
       />
     </div>
   );

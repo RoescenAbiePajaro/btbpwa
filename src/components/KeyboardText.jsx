@@ -1,7 +1,7 @@
 // src/components/KeyboardText.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive }) => {
+const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive, onTextDragging }) => {
   const [inputText, setInputText] = useState('');
   const [inputPos, setInputPos] = useState({ x: 720, y: 384 });
   const [isEditingInput, setIsEditingInput] = useState(false);
@@ -9,6 +9,7 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive }) =>
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef(null);
+  const dragStartPosRef = useRef(null);
 
   // Focus input when editing starts
   useEffect(() => {
@@ -16,6 +17,13 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive }) =>
       inputRef.current.focus();
     }
   }, [isEditingInput]);
+
+  // Notify parent about dragging state
+  useEffect(() => {
+    if (onTextDragging) {
+      onTextDragging(draggingIndex >= 0);
+    }
+  }, [draggingIndex, onTextDragging]);
 
   // Add new text object
   const addTextObject = useCallback(() => {
@@ -54,14 +62,19 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive }) =>
   // Handle drag start
   const handleDragStart = useCallback((e, index) => {
     if (!isActive) return;
+    e.preventDefault();
     e.stopPropagation();
     
     const obj = textObjects[index];
+    const startX = e.clientX;
+    const startY = e.clientY;
+    
     setDraggingIndex(index);
     setDragOffset({
-      x: e.clientX - obj.position.x,
-      y: e.clientY - obj.position.y
+      x: startX - obj.position.x,
+      y: startY - obj.position.y
     });
+    dragStartPosRef.current = { x: startX, y: startY };
     
     // Select this object
     setSelectedIndex(index);
@@ -74,6 +87,9 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive }) =>
   // Handle drag move
   const handleDragMove = useCallback((e) => {
     if (draggingIndex >= 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      
       const newPos = {
         x: e.clientX - dragOffset.x,
         y: e.clientY - dragOffset.y
@@ -83,23 +99,30 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive }) =>
   }, [draggingIndex, dragOffset, updateTextObject]);
 
   // Handle drag end
-  const handleDragEnd = useCallback(() => {
-    setDraggingIndex(-1);
-  }, []);
+  const handleDragEnd = useCallback((e) => {
+    if (draggingIndex >= 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      setDraggingIndex(-1);
+      dragStartPosRef.current = null;
+    }
+  }, [draggingIndex]);
 
   // Handle keyboard events
   const handleKeyDown = useCallback((e) => {
     if (!isActive) return;
     
     if (e.key === 'Enter' && isEditingInput) {
+      e.preventDefault();
       addTextObject();
     } else if (e.key === 'Escape') {
       setIsEditingInput(false);
       setInputText('');
       setSelectedIndex(-1);
       setTextObjects(prev => prev.map(o => ({ ...o, selected: false })));
-    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+    } else if (e.key === 'Delete') {
       if (selectedIndex >= 0 && !isEditingInput) {
+        e.preventDefault();
         deleteSelected();
       }
     }
@@ -113,14 +136,15 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive }) =>
     }
   }, [isActive, handleKeyDown]);
 
-  // Add mouse move/end listeners for dragging
+  // Add mouse move/end listeners for dragging with capture to prevent interference
   useEffect(() => {
     if (draggingIndex >= 0) {
-      window.addEventListener('mousemove', handleDragMove);
-      window.addEventListener('mouseup', handleDragEnd);
+      // Use capture phase to ensure we get events before canvas
+      window.addEventListener('mousemove', handleDragMove, true);
+      window.addEventListener('mouseup', handleDragEnd, true);
       return () => {
-        window.removeEventListener('mousemove', handleDragMove);
-        window.removeEventListener('mouseup', handleDragEnd);
+        window.removeEventListener('mousemove', handleDragMove, true);
+        window.removeEventListener('mouseup', handleDragEnd, true);
       };
     }
   }, [draggingIndex, handleDragMove, handleDragEnd]);
@@ -135,14 +159,16 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive }) =>
             bottom: 20,
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(0, 0, 0, 0.85)',
+            background: 'rgba(0, 0, 0, 0.95)',
             padding: '16px 24px',
             borderRadius: '12px',
-            zIndex: 1000,
+            zIndex: 1001,
             display: 'flex',
             gap: '12px',
             alignItems: 'center',
-            border: '2px solid #64FFDA'
+            border: '2px solid #64FFDA',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
           }}
         >
           <input
@@ -213,7 +239,7 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive }) =>
             setSelectedIndex(index);
           }}
           style={{
-            position: 'absolute',
+            position: 'fixed',
             left: obj.position.x,
             top: obj.position.y,
             cursor: draggingIndex === index ? 'grabbing' : 'grab',
@@ -225,8 +251,10 @@ const KeyboardText = ({ textObjects, setTextObjects, isActive, onSetActive }) =>
             borderRadius: '4px',
             background: obj.selected ? 'rgba(100, 255, 218, 0.3)' : 'transparent',
             border: obj.selected ? '2px solid #64FFDA' : 'none',
-            zIndex: 100,
-            textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
+            zIndex: draggingIndex === index ? 1002 : 100,
+            textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+            pointerEvents: isActive ? 'auto' : 'none',
+            whiteSpace: 'nowrap'
           }}
         >
           {obj.text}

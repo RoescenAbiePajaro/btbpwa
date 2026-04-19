@@ -161,25 +161,34 @@ const CanvasArea = () => {
     saveState(true);
   }, [saveState]);
 
-  // Smooth coordinates using moving average to reduce jitter
+  // Enhanced smoothing with weighted average to reduce jitter
   const smoothCoordinates = useCallback((x, y) => {
-    const bufferSize = 3;
+    const bufferSize = 5; // Increased buffer for better smoothing
     pointBufferRef.current.push({ x, y });
     
     if (pointBufferRef.current.length > bufferSize) {
       pointBufferRef.current.shift();
     }
     
-    if (pointBufferRef.current.length < bufferSize) {
+    if (pointBufferRef.current.length < 2) {
       return { x, y };
     }
     
-    const sumX = pointBufferRef.current.reduce((sum, p) => sum + p.x, 0);
-    const sumY = pointBufferRef.current.reduce((sum, p) => sum + p.y, 0);
+    // Weighted average: recent points have more weight
+    let weightedX = 0;
+    let weightedY = 0;
+    let totalWeight = 0;
+    
+    pointBufferRef.current.forEach((point, index) => {
+      const weight = (index + 1) / pointBufferRef.current.length; // Linear weighting
+      weightedX += point.x * weight;
+      weightedY += point.y * weight;
+      totalWeight += weight;
+    });
     
     return {
-      x: sumX / bufferSize,
-      y: sumY / bufferSize
+      x: weightedX / totalWeight,
+      y: weightedY / totalWeight
     };
   }, []);
 
@@ -316,7 +325,7 @@ const CanvasArea = () => {
     canvasSnapshotRef.current = canvasRef.current.toDataURL();
   }, []);
 
-  // Handle drawing with coordinate transformation for mirror
+  // Handle drawing with improved smoothing and immediate eraser activation
   const handleDrawing = useCallback((x, y, isStart = false, isEnd = false) => {
     // Don't draw if we're dragging text or in keyboard mode
     if (!isDrawingEnabled || isDraggingTextRef.current || isKeyboardMode) return;
@@ -332,6 +341,21 @@ const CanvasArea = () => {
     const canvas = canvasRef.current;
     const transformedX = canvas.width - smoothed.x;
 
+    // For eraser, activate immediately on first detection
+    if (isErasing && isStart) {
+      // Start erasing immediately when first detected
+      drawLine(
+        transformedX,
+        smoothed.y,
+        transformedX,
+        smoothed.y,
+        color,
+        size,
+        isErasing
+      );
+      isDrawingRef.current = true;
+    }
+    
     if (lastPointRef.current) {
       drawLine(
         lastPointRef.current.x,
@@ -606,10 +630,21 @@ const CanvasArea = () => {
       try {
         setModelStatus('Requesting camera...');
         
-        // Get camera stream
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { width: 1280, height: 720 } 
-        });
+        // Get camera stream with better error handling
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: 'user'
+            } 
+          });
+        } catch (cameraError) {
+          console.error('Camera access error:', cameraError);
+          setModelStatus('Camera access denied. Please allow camera access.');
+          return;
+        }
         
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -617,26 +652,39 @@ const CanvasArea = () => {
           setModelStatus('Camera ready, loading hand detector...');
         }
 
-        // Wait for MediaPipe to be available
-        const waitForMediaPipe = () => {
-          return new Promise((resolve) => {
+        // Wait for MediaPipe to be available with timeout
+        const waitForMediaPipe = (timeout = 10000) => {
+          return new Promise((resolve, reject) => {
             if (window.Hands) {
               resolve();
-            } else {
-              const checkInterval = setInterval(() => {
-                if (window.Hands) {
-                  clearInterval(checkInterval);
-                  resolve();
-                }
-              }, 100);
+              return;
             }
+            
+            const checkInterval = setInterval(() => {
+              if (window.Hands) {
+                clearInterval(checkInterval);
+                resolve();
+              }
+            }, 100);
+            
+            setTimeout(() => {
+              clearInterval(checkInterval);
+              reject(new Error('MediaPipe Hands failed to load within timeout'));
+            }, timeout);
           });
         };
 
-        await waitForMediaPipe();
-        setModelStatus('Initializing hand detector...');
+        try {
+          await waitForMediaPipe();
+          setModelStatus('Initializing hand detector...');
+        } catch (mpError) {
+          console.error('MediaPipe loading error:', mpError);
+          setModelStatus('Hand detector failed to load. Refreshing...');
+          setTimeout(() => window.location.reload(), 2000);
+          return;
+        }
 
-        // Initialize Hands
+        // Initialize Hands with optimized parameters
         const hands = new window.Hands({
           locateFile: (file) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
@@ -646,28 +694,34 @@ const CanvasArea = () => {
         hands.setOptions({
           maxNumHands: 1,
           modelComplexity: 1,
-          minDetectionConfidence: 0.5,
-          minTrackingConfidence: 0.5
+          minDetectionConfidence: 0.3, // Lowered for better detection
+          minTrackingConfidence: 0.3   // Lowered for better tracking
         });
 
         handsRef.current = hands;
         setModelStatus('Ready! Show your hand to draw');
 
-        // Process frames
+        // Process frames with error handling
         const processFrame = async () => {
-          if (videoRef.current && videoRef.current.readyState >= 2 && handsRef.current) {
-            // Skip processing if in keyboard mode or dragging text
-            if (!isKeyboardMode && !isDraggingTextRef.current) {
-              await handsRef.current.send({ image: videoRef.current });
+          try {
+            if (videoRef.current && videoRef.current.readyState >= 2 && handsRef.current) {
+              // Skip processing if in keyboard mode or dragging text
+              if (!isKeyboardMode && !isDraggingTextRef.current) {
+                await handsRef.current.send({ image: videoRef.current });
+              }
             }
+            animationRef.current = requestAnimationFrame(processFrame);
+          } catch (frameError) {
+            console.error('Frame processing error:', frameError);
+            // Continue processing even if individual frames fail
+            animationRef.current = requestAnimationFrame(processFrame);
           }
-          animationRef.current = requestAnimationFrame(processFrame);
         };
 
         processFrame();
         
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Hand tracking initialization error:', error);
         setModelStatus(`Error: ${error.message}`);
       }
     };
@@ -679,11 +733,21 @@ const CanvasArea = () => {
         cancelAnimationFrame(animationRef.current);
       }
       if (handsRef.current) {
-        handsRef.current.close();
+        try {
+          handsRef.current.close();
+        } catch (e) {
+          console.error('Error closing hands:', e);
+        }
       }
       if (videoRef.current && videoRef.current.srcObject) {
         const tracks = videoRef.current.srcObject.getTracks();
-        tracks.forEach(track => track.stop());
+        tracks.forEach(track => {
+          try {
+            track.stop();
+          } catch (e) {
+            console.error('Error stopping track:', e);
+          }
+        });
       }
     };
   }, [isKeyboardMode]); // Only re-initialize when keyboard mode changes
@@ -697,40 +761,49 @@ const CanvasArea = () => {
           return;
         }
         
-        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-          setHandDetected(true);
-          const landmarks = results.multiHandLandmarks[0];
-          const gesture = detectGesture(landmarks);
-          setCurrentGesture(gesture);
-          
-          // Get index finger tip position
-          const indexTip = landmarks[8];
-          const canvas = canvasRef.current;
-          
-          if (canvas && indexTip) {
-            // Don't transform here, transform in handleDrawing
-            const x = indexTip.x * canvas.width;
-            const y = indexTip.y * canvas.height;
+        try {
+          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            setHandDetected(true);
+            const landmarks = results.multiHandLandmarks[0];
+            const gesture = detectGesture(landmarks);
+            setCurrentGesture(gesture);
             
-            // Check if we're in a shape mode
-            const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
-            const isShapeMode = shapeModes.includes(mode);
+            // Get index finger tip position
+            const indexTip = landmarks[8];
+            const canvas = canvasRef.current;
             
-            // Handle shape drawing
-            if (isShapeMode && isDrawingEnabled) {
-              handleShapeDrawing(x, y, gesture === 'draw');
+            if (canvas && indexTip) {
+              // Don't transform here, transform in handleDrawing
+              const x = indexTip.x * canvas.width;
+              const y = indexTip.y * canvas.height;
+              
+              // Check if we're in a shape mode
+              const shapeModes = ['line', 'rectangle', 'square', 'circle', 'triangle'];
+              const isShapeMode = shapeModes.includes(mode);
+              
+              // Handle shape drawing
+              if (isShapeMode && isDrawingEnabled) {
+                handleShapeDrawing(x, y, gesture === 'draw');
+              }
+              // Draw or erase based on gesture and mode
+              else if (gesture === 'draw' && mode === 'draw' && isDrawingEnabled) {
+                handleDrawing(x, y, false, false);
+              } else if (mode === 'erase' && isDrawingEnabled && (gesture === 'erase' || gesture === 'draw')) {
+                // For eraser, start immediately on first detection
+                const isStart = !isDrawingRef.current;
+                handleDrawing(x, y, isStart, false);
+              } else {
+                handleDrawing(x, y, false, true); // Mark as end when gesture stops
+                resetDrawing();
+              }
             }
-            // Draw or erase based on gesture and mode
-            else if (gesture === 'draw' && mode === 'draw' && isDrawingEnabled) {
-              handleDrawing(x, y, false, false);
-            } else if (mode === 'erase' && isDrawingEnabled && (gesture === 'erase' || gesture === 'draw')) {
-              handleDrawing(x, y, false, false);
-            } else {
-              handleDrawing(x, y, false, true); // Mark as end when gesture stops
-              resetDrawing();
-            }
+          } else {
+            setHandDetected(false);
+            setCurrentGesture('none');
+            resetDrawing();
           }
-        } else {
+        } catch (error) {
+          console.error('Error processing hand results:', error);
           setHandDetected(false);
           setCurrentGesture('none');
           resetDrawing();
@@ -739,23 +812,23 @@ const CanvasArea = () => {
     }
   }, [mode, isDrawingEnabled, handleDrawing, handleShapeDrawing, resetDrawing, isKeyboardMode]);
 
-  // Detect gesture from landmarks
+  // Detect gesture from landmarks with improved sensitivity
   const detectGesture = (landmarks) => {
     try {
       if (!landmarks || landmarks.length < 21) {
         return 'none';
       }
       
-      // Get finger states
+      // Get finger states with more lenient thresholds
       const fingers = {
-        thumb: landmarks[4].y < landmarks[2].y,
-        index: landmarks[8].y < landmarks[6].y,
-        middle: landmarks[12].y < landmarks[10].y,
-        ring: landmarks[16].y < landmarks[14].y,
-        pinky: landmarks[20].y < landmarks[18].y
+        thumb: landmarks[4].y < landmarks[2].y + 0.05, // More lenient thumb detection
+        index: landmarks[8].y < landmarks[6].y + 0.05,  // More lenient index detection
+        middle: landmarks[12].y < landmarks[10].y + 0.05,
+        ring: landmarks[16].y < landmarks[14].y + 0.05,
+        pinky: landmarks[20].y < landmarks[18].y + 0.05
       };
       
-      // Index finger only
+      // Index finger only (with some tolerance for other fingers)
       if (fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
         return 'draw';
       }
@@ -765,9 +838,14 @@ const CanvasArea = () => {
         return 'stop';
       }
       
-      // Thumb up
+      // Thumb up (more lenient)
       if (fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky) {
         return 'erase';
+      }
+      
+      // Open palm (all fingers) - also can be used for drawing
+      if (fingers.thumb && fingers.index && fingers.middle && fingers.ring && fingers.pinky) {
+        return 'draw';
       }
       
       return 'none';

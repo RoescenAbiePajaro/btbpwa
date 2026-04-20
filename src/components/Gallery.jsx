@@ -4,6 +4,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import PptxGenJS from 'pptxgenjs';
 import JSZip from 'jszip';
+import { exportAsPDF as exportAsPDFWithText, exportAsPPTX as exportAsPPTXWithText } from '../services/exportUtils';
 
 const CANVAS_WIDTH = 1440;
 const CANVAS_HEIGHT = 768;
@@ -156,77 +157,81 @@ const Gallery = ({ onClose, onLoad }) => {
   };
 
   const exportAsPDF = async (work) => {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const pdf = new jsPDF();
-        const compositedImage = await compositeWithTemplate(work.canvasData);
-        const response = await fetch(compositedImage);
-        const blob = await response.blob();
-        
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const imgWidth = 180;
-            const imgHeight = (img.height * imgWidth) / img.width;
-            const x = (pdf.internal.pageSize.width - imgWidth) / 2;
-            const y = 20;
-            
-            pdf.text(work.title, pdf.internal.pageSize.width / 2, y, { align: 'center' });
-            pdf.addImage(img, 'PNG', x, y + 10, imgWidth, imgHeight);
-            pdf.save(`${work.title}.pdf`);
-            URL.revokeObjectURL(img.src);
-            resolve();
-          } catch (error) {
-            console.error('Error generating PDF:', error);
-            reject(error);
-          }
-        };
-        img.onerror = () => {
-          console.error('Failed to load image for PDF');
-          reject(new Error('Failed to load image'));
-        };
+    try {
+      // Extract text objects from saved data
+      const savedData = work.canvasData;
+      const textObjects = typeof savedData === 'object' && savedData.textObjects
+        ? savedData.textObjects
+        : [];
+
+      // Create canvas from composited image
+      const compositedImage = await compositeWithTemplate(work.canvasData);
+      const response = await fetch(compositedImage);
+      const blob = await response.blob();
+
+      // Create an Image object to load the blob
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
         img.src = URL.createObjectURL(blob);
-      } catch (error) {
-        console.error('Error exporting PDF:', error);
-        reject(error);
-      }
-    });
+      });
+
+      // Create a canvas element
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      // Use the enhanced exportAsPDF function with editable text support
+      await exportAsPDFWithText(canvas, textObjects);
+
+      // Clean up
+      URL.revokeObjectURL(img.src);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('Failed to export PDF');
+    }
   };
 
   const exportAsPPTX = async (work) => {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const pptx = new PptxGenJS();
-        const slide = pptx.addSlide();
-        
-        slide.addText(work.title, { 
-          x: 1, 
-          y: 0.5, 
-          fontSize: 24, 
-          bold: true, 
-          align: 'center',
-          color: '363636'
-        });
-        
-        const compositedImage = await compositeWithTemplate(work.canvasData);
-        const imageData = await fetch(compositedImage).then(res => res.arrayBuffer());
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
-        
-        slide.addImage({
-          data: `data:image/png;base64,${base64}`,
-          x: 1,
-          y: 1.5,
-          w: 8,
-          h: 4
-        });
-        
-        pptx.writeFile({ fileName: `${work.title}.pptx` });
-        resolve();
-      } catch (error) {
-        console.error('Error exporting PPTX:', error);
-        reject(error);
-      }
-    });
+    try {
+      // Extract text objects from saved data
+      const savedData = work.canvasData;
+      const textObjects = typeof savedData === 'object' && savedData.textObjects
+        ? savedData.textObjects
+        : [];
+
+      // Create canvas from composited image
+      const compositedImage = await compositeWithTemplate(work.canvasData);
+      const response = await fetch(compositedImage);
+      const blob = await response.blob();
+
+      // Create an Image object to load the blob
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = URL.createObjectURL(blob);
+      });
+
+      // Create a canvas element
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      // Use the enhanced exportAsPPTX function with editable text support
+      await exportAsPPTXWithText(canvas, textObjects);
+
+      // Clean up
+      URL.revokeObjectURL(img.src);
+    } catch (error) {
+      console.error('Error exporting PPTX:', error);
+      alert('Failed to export PPTX');
+    }
   };
 
   const handleExport = async (work, format) => {

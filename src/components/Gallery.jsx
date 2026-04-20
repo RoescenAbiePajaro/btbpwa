@@ -1,17 +1,15 @@
+// src/components/Gallery.jsx
 import React, { useEffect, useState } from 'react';
 import { getUserGallery, loadWorkFromGallery, deleteWorkFromGallery, deleteMultipleWorksFromGallery } from '../services/api';
-import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import PptxGenJS from 'pptxgenjs';
 import JSZip from 'jszip';
-import { exportAsPDF as exportAsPDFWithText, exportAsPPTX as exportAsPPTXWithText } from '../services/exportUtils';
 
 const CANVAS_WIDTH = 1440;
 const CANVAS_HEIGHT = 768;
 
 const Gallery = ({ onClose, onLoad }) => {
   const [works, setWorks] = useState([]);
-  const [exportFormat, setExportFormat] = useState(null);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [showExportModal, setShowExportModal] = useState(false);
   const [templateImage, setTemplateImage] = useState(null);
@@ -116,7 +114,6 @@ const Gallery = ({ onClose, onLoad }) => {
 
   const handleLoad = async (id) => {
     const savedData = await loadWorkFromGallery(id);
-    // Pass the entire saved data object to onLoad
     onLoad(savedData);
     onClose();
   };
@@ -158,18 +155,15 @@ const Gallery = ({ onClose, onLoad }) => {
 
   const exportAsPDF = async (work) => {
     try {
-      // Extract text objects from saved data
       const savedData = work.canvasData;
       const textObjects = typeof savedData === 'object' && savedData.textObjects
         ? savedData.textObjects
         : [];
 
-      // Create canvas from composited image
       const compositedImage = await compositeWithTemplate(work.canvasData);
       const response = await fetch(compositedImage);
       const blob = await response.blob();
 
-      // Create an Image object to load the blob
       const img = new Image();
       await new Promise((resolve, reject) => {
         img.onload = resolve;
@@ -177,17 +171,14 @@ const Gallery = ({ onClose, onLoad }) => {
         img.src = URL.createObjectURL(blob);
       });
 
-      // Create a canvas element
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
 
-      // Use the enhanced exportAsPDF function with editable text support
-      await exportAsPDFWithText(canvas, textObjects);
+      await exportAsPDFWithText(canvas, textObjects, work.title);
 
-      // Clean up
       URL.revokeObjectURL(img.src);
     } catch (error) {
       console.error('Error exporting PDF:', error);
@@ -197,18 +188,15 @@ const Gallery = ({ onClose, onLoad }) => {
 
   const exportAsPPTX = async (work) => {
     try {
-      // Extract text objects from saved data
       const savedData = work.canvasData;
       const textObjects = typeof savedData === 'object' && savedData.textObjects
         ? savedData.textObjects
         : [];
 
-      // Create canvas from composited image
       const compositedImage = await compositeWithTemplate(work.canvasData);
       const response = await fetch(compositedImage);
       const blob = await response.blob();
 
-      // Create an Image object to load the blob
       const img = new Image();
       await new Promise((resolve, reject) => {
         img.onload = resolve;
@@ -216,17 +204,14 @@ const Gallery = ({ onClose, onLoad }) => {
         img.src = URL.createObjectURL(blob);
       });
 
-      // Create a canvas element
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
 
-      // Use the enhanced exportAsPPTX function with editable text support
-      await exportAsPPTXWithText(canvas, textObjects);
+      await exportAsPPTXWithText(canvas, textObjects, work.title);
 
-      // Clean up
       URL.revokeObjectURL(img.src);
     } catch (error) {
       console.error('Error exporting PPTX:', error);
@@ -255,24 +240,86 @@ const Gallery = ({ onClose, onLoad }) => {
     }
   };
 
+  // Helper function to extract text content from text objects
+  const extractTextContent = (textObjects, yThreshold = 78) => {
+    if (!textObjects || textObjects.length === 0) return '';
+    
+    const filteredText = textObjects.filter(obj => {
+      if (!obj.position || !obj.text) return false;
+      const yPos = obj.position.y || 0;
+      return yPos > yThreshold && obj.text.trim() !== '';
+    });
+    
+    return filteredText
+      .map(obj => obj.text || '')
+      .filter(text => text.trim() !== '')
+      .join('\n');
+  };
+
   const exportCombinedPDF = async (selectedWorks) => {
     return new Promise(async (resolve, reject) => {
       try {
         const pdf = new jsPDF();
+        let isFirstPage = true;
         
         for (let i = 0; i < selectedWorks.length; i++) {
           const work = selectedWorks[i];
+          const savedData = work.canvasData;
+          const textObjects = typeof savedData === 'object' && savedData.textObjects
+            ? savedData.textObjects
+            : [];
           
-          // Add new page for each work (except first one)
-          if (i > 0) {
-            pdf.addPage();
+          // Extract text content for this work
+          const textContent = extractTextContent(textObjects);
+          const lines = textContent.split('\n').filter(line => line.trim() !== '');
+          
+          // Add text page if there's content
+          if (lines.length > 0) {
+            // Only add new page if this is NOT the first page
+            if (!isFirstPage) {
+              pdf.addPage();
+            }
+            
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            
+            // Add title/header for this work
+            pdf.setFontSize(24);
+            pdf.setFont('helvetica', 'bold');
+            const headerText = work.title || 'Beyond The Brush';
+            const headerWidth = pdf.getTextWidth(headerText);
+            pdf.text(headerText, (pageWidth - headerWidth) / 2, 20);
+            
+            // Add separator line
+            pdf.setDrawColor(179, 179, 179);
+            pdf.setLineWidth(0.5);
+            pdf.line(20, 25, pageWidth - 20, 25);
+            
+            // Add text content
+            pdf.setFontSize(12);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(0, 0, 0);
+            
+            let textY = 35;
+            const lineHeight = 7;
+            const bottomMargin = 20;
+            
+            lines.forEach((line) => {
+              if (textY > pdf.internal.pageSize.getHeight() - bottomMargin) {
+                pdf.addPage();
+                textY = 20;
+              }
+              pdf.text(line, 20, textY);
+              textY += lineHeight;
+            });
+            
+            isFirstPage = false;
           }
           
-          let currentY = 20;
-          
-          // Add title
-          pdf.text(work.title, pdf.internal.pageSize.width / 2, currentY, { align: 'center' });
-          currentY += 20;
+          // Add image page for this work
+          // Always add new page for image if we already have content
+          if (!isFirstPage) {
+            pdf.addPage();
+          }
           
           // Composite with template for export
           const compositedImage = await compositeWithTemplate(work.canvasData);
@@ -280,33 +327,25 @@ const Gallery = ({ onClose, onLoad }) => {
           const blob = await response.blob();
           
           const img = new Image();
-          img.onload = () => {
-            try {
-              const imgWidth = 180;
-              const imgHeight = (img.height * imgWidth) / img.width;
-              const x = (pdf.internal.pageSize.width - imgWidth) / 2;
-              
-              pdf.addImage(img, 'PNG', x, currentY, imgWidth, imgHeight);
-              URL.revokeObjectURL(img.src);
-              
-              // If this is the last image, save the PDF
-              if (i === selectedWorks.length - 1) {
-                pdf.save(`gallery-export-${Date.now()}.pdf`);
-                resolve();
-              }
-            } catch (error) {
-              console.error('Error adding image to PDF:', error);
-              reject(error);
-            }
-          };
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = URL.createObjectURL(blob);
+          });
           
-          img.onerror = () => {
-            console.error('Failed to load image for PDF');
-            reject(new Error('Failed to load image'));
-          };
+          const imgWidth = 180;
+          const imgHeight = (img.height * imgWidth) / img.width;
+          const x = (pdf.internal.pageSize.getWidth() - imgWidth) / 2;
+          const y = (pdf.internal.pageSize.getHeight() - imgHeight) / 2;
           
-          img.src = URL.createObjectURL(blob);
+          pdf.addImage(img, 'PNG', x, y, imgWidth, imgHeight);
+          URL.revokeObjectURL(img.src);
+          
+          isFirstPage = false;
         }
+        
+        pdf.save(`gallery-export-${Date.now()}.pdf`);
+        resolve();
       } catch (error) {
         console.error('Error creating combined PDF:', error);
         reject(error);
@@ -320,33 +359,76 @@ const Gallery = ({ onClose, onLoad }) => {
         const pptx = new PptxGenJS();
         
         for (const work of selectedWorks) {
-          const slide = pptx.addSlide();
+          const savedData = work.canvasData;
+          const textObjects = typeof savedData === 'object' && savedData.textObjects
+            ? savedData.textObjects
+            : [];
           
-          // Add title to slide
-          slide.addText(work.title, { 
-            x: 1, 
-            y: 0.5, 
-            fontSize: 24, 
-            bold: true, 
-            align: 'center',
-            color: '363636'
-          });
+          // Extract text content for this work
+          const textContent = extractTextContent(textObjects);
+          const lines = textContent.split('\n').filter(line => line.trim() !== '');
+          
+          // Add text slide if there's content
+          if (lines.length > 0) {
+            const textSlide = pptx.addSlide();
+            
+            // Add title/header
+            textSlide.addText(work.title || 'Beyond The Brush', {
+              x: 0.5, y: 0.3, w: 9, h: 0.8,
+              fontSize: 32, bold: true, align: 'center'
+            });
+            
+            // Add separator line
+            textSlide.addShape(pptx.ShapeType.line, {
+              x: 0.5, y: 1.2, w: 9, h: 0,
+              line: { color: 'B3B3B3', width: 1 }
+            });
+            
+            // Add text content
+            let y = 1.5;
+            const lineHeight = 0.35;
+            
+            lines.forEach((line) => {
+              if (y > 5) {
+                console.warn('Text exceeds slide height');
+              }
+              textSlide.addText(line, {
+                x: 0.5, y: y, w: 9, h: lineHeight,
+                fontSize: 14, align: 'left'
+              });
+              y += lineHeight;
+            });
+          }
+          
+          // Add image slide for this work
+          const imageSlide = pptx.addSlide();
           
           // Composite with template for export
           const compositedImage = await compositeWithTemplate(work.canvasData);
           const imageData = await fetch(compositedImage).then(res => res.arrayBuffer());
           const base64 = btoa(String.fromCharCode(...new Uint8Array(imageData)));
           
-          slide.addImage({
+          imageSlide.addImage({
             data: `data:image/png;base64,${base64}`,
             x: 1,
-            y: 1.5,
+            y: 0.8,
             w: 8,
-            h: 4
+            h: 4.5
+          });
+          
+          // Add title at the bottom
+          imageSlide.addText(work.title, {
+            x: 1,
+            y: 5.4,
+            w: 8,
+            h: 0.4,
+            fontSize: 16,
+            align: 'center',
+            color: '666666'
           });
         }
         
-        pptx.writeFile({ fileName: `gallery-export-${Date.now()}.pptx` });
+        await pptx.writeFile({ fileName: `gallery-export-${Date.now()}.pptx` });
         resolve();
       } catch (error) {
         console.error('Error creating combined PPTX:', error);
@@ -362,22 +444,18 @@ const Gallery = ({ onClose, onLoad }) => {
         const imgFolder = zip.folder("gallery-images");
         
         for (const work of selectedWorks) {
-          // Composite with template for export
           const compositedImage = await compositeWithTemplate(work.canvasData);
           const response = await fetch(compositedImage);
           const blob = await response.blob();
           const arrayBuffer = await blob.arrayBuffer();
           
-          // Add image to zip with safe filename
           const safeFileName = `${work.title.replace(/[^a-z0-9]/gi, '_')}.png`;
           imgFolder.file(safeFileName, arrayBuffer);
         }
         
-        // Generate zip file
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const url = URL.createObjectURL(zipBlob);
         
-        // Download zip
         const a = document.createElement('a');
         a.href = url;
         a.download = `gallery-images-${Date.now()}.zip`;
@@ -431,10 +509,8 @@ const Gallery = ({ onClose, onLoad }) => {
     
     try {
       await deleteWorkFromGallery(workId);
-      // Refresh the gallery
       const data = await getUserGallery();
       setWorks(data);
-      // Clear selection if the deleted item was selected
       const newSelected = new Set(selectedItems);
       newSelected.delete(workId);
       setSelectedItems(newSelected);
@@ -453,10 +529,8 @@ const Gallery = ({ onClose, onLoad }) => {
     
     try {
       await deleteMultipleWorksFromGallery(Array.from(selectedItems));
-      // Refresh the gallery
       const data = await getUserGallery();
       setWorks(data);
-      // Clear selections
       setSelectedItems(new Set());
     } catch (error) {
       console.error('Error deleting works:', error);
@@ -600,5 +674,117 @@ const Gallery = ({ onClose, onLoad }) => {
     </div>
   );
 };
+
+// Helper functions for single exports
+async function exportAsPDFWithText(canvas, textObjects, title) {
+  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF();
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  
+  // Extract text content
+  const filteredTextObjects = (textObjects || []).filter(obj => {
+    if (!obj.position || !obj.text) return false;
+    const yPos = obj.position.y || 0;
+    return yPos > 78 && obj.text.trim() !== '';
+  });
+  
+  const textContent = filteredTextObjects.map(obj => obj.text).join('\n');
+  
+  if (textContent.trim()) {
+    const lines = textContent.split('\n').filter(line => line.trim() !== '');
+    
+    if (lines.length > 0) {
+      pdf.setFontSize(24);
+      pdf.setFont('helvetica', 'bold');
+      const headerText = title || 'Beyond The Brush';
+      const headerWidth = pdf.getTextWidth(headerText);
+      pdf.text(headerText, (pageWidth - headerWidth) / 2, 20);
+      
+      pdf.setDrawColor(179, 179, 179);
+      pdf.setLineWidth(0.5);
+      pdf.line(20, 25, pageWidth - 20, 25);
+      
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0, 0, 0);
+      
+      let textY = 35;
+      const lineHeight = 7;
+      
+      lines.forEach((line) => {
+        pdf.text(line, 20, textY);
+        textY += lineHeight;
+      });
+      
+      pdf.addPage();
+    }
+  }
+  
+  pdf.addImage(imgData, 'PNG', 15, 15, 180, 0);
+  pdf.save(`${title || 'beyond-the-brush'}.pdf`);
+}
+
+async function exportAsPPTXWithText(canvas, textObjects, title) {
+  const pptx = new PptxGenJS();
+  const imgData = canvas.toDataURL('image/png');
+  
+  const filteredTextObjects = (textObjects || []).filter(obj => {
+    if (!obj.position || !obj.text) return false;
+    const yPos = obj.position.y || 0;
+    return yPos > 78 && obj.text.trim() !== '';
+  });
+  
+  const textContent = filteredTextObjects.map(obj => obj.text).join('\n');
+  
+  if (textContent.trim()) {
+    const lines = textContent.split('\n').filter(line => line.trim() !== '');
+    
+    if (lines.length > 0) {
+      const textSlide = pptx.addSlide();
+      
+      textSlide.addText(title || 'Beyond The Brush', {
+        x: 1, y: 0.3, w: 8, h: 0.8,
+        fontSize: 32, bold: true, align: 'center'
+      });
+      
+      textSlide.addShape(pptx.ShapeType.line, {
+        x: 1, y: 1.2, w: 8, h: 0,
+        line: { color: 'B3B3B3', width: 1 }
+      });
+      
+      let y = 1.5;
+      const lineHeight = 0.35;
+      
+      lines.forEach((line) => {
+        textSlide.addText(line, {
+          x: 1, y: y, w: 8, h: lineHeight,
+          fontSize: 14, align: 'left'
+        });
+        y += lineHeight;
+      });
+    }
+  }
+  
+  const imageSlide = pptx.addSlide();
+  imageSlide.addImage({
+    data: imgData,
+    x: 1,
+    y: 0.8,
+    w: 8,
+    h: 4.5
+  });
+  
+  imageSlide.addText(title || 'Beyond The Brush', {
+    x: 1,
+    y: 5.4,
+    w: 8,
+    h: 0.4,
+    fontSize: 16,
+    align: 'center',
+    color: '666666'
+  });
+  
+  await pptx.writeFile({ fileName: `${title || 'beyond-the-brush'}.pptx` });
+}
 
 export default Gallery;
